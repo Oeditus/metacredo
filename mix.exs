@@ -90,8 +90,6 @@ defmodule MetaCredo.MixProject do
   defp description do
     """
     Cross-language static code analysis tool built on MetaAST.
-    Write a check once, run it across Python, JavaScript, Elixir, Ruby,
-    Haskell, Erlang, and all other languages supported by Metastatic.
     Provides 72 checks covering security (CWE Top 25), code quality,
     readability, design, consistency, observability, and refactoring.
     """
