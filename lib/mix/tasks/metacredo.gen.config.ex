@@ -71,7 +71,7 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
     discover_checks()
     |> Enum.group_by(& &1.category())
     |> Enum.sort_by(fn {cat, _} -> to_string(cat) end)
-    |> Enum.map_join("\n", fn {category, checks} ->
+    |> Enum.map_join(",\n", fn {category, checks} ->
       header = "              # -- #{format_category(category)} --"
 
       lines =
@@ -86,17 +86,24 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
   end
 
   defp discover_checks do
-    case :application.get_key(:metacredo, :modules) do
-      {:ok, modules} ->
-        Enum.filter(modules, fn mod ->
-          String.starts_with?(to_string(mod), "Elixir.MetaCredo.Check.") and
-            function_exported?(mod, :run, 2) and
-            function_exported?(mod, :category, 0)
-        end)
+    modules =
+      case :application.get_key(:metacredo, :modules) do
+        {:ok, mods} when mods != [] -> mods
+        _ -> discover_loaded_modules()
+      end
 
-      :undefined ->
-        []
-    end
+    Enum.filter(modules, fn mod ->
+      Code.ensure_loaded?(mod) and
+        String.starts_with?(to_string(mod), "Elixir.MetaCredo.Check.") and
+        function_exported?(mod, :run, 2) and
+        function_exported?(mod, :category, 0)
+    end)
+  end
+
+  defp discover_loaded_modules do
+    :code.all_loaded()
+    |> Enum.map(fn {mod, _} -> mod end)
+    |> Enum.filter(&(to_string(&1) |> String.starts_with?("Elixir.MetaCredo.Check.")))
   end
 
   defp format_category(category) do

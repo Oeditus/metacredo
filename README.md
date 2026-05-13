@@ -1,4 +1,4 @@
-<img src="priv/images/logo-200.png" alt="MetaCredo" width="128" align="right">
+<img src="https://raw.githubusercontent.com/Oeditus/metacredo/v0.1.0/priv/images/logo-200.png" alt="MetaCredo" width="128" align="right">
 
 # MetaCredo
 
