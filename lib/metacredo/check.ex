@@ -80,7 +80,11 @@ defmodule MetaCredo.Check do
     param_defaults = Keyword.get(opts, :param_defaults, [])
     tags = Keyword.get(opts, :tags, [])
 
+    moduledoc = build_moduledoc(category, base_priority, explanations, param_defaults, tags)
+
     quote do
+      @moduledoc unquote(moduledoc)
+
       @behaviour MetaCredo.Check
 
       alias MetaCredo.{Check, Issue, SourceFile}
@@ -169,4 +173,60 @@ defmodule MetaCredo.Check do
   @doc "Returns the list of valid check categories."
   @spec valid_categories() :: [atom()]
   def valid_categories, do: @valid_categories
+
+  # -- Moduledoc generation --
+
+  @category_labels %{
+    consistency: "Consistency",
+    design: "Software Design",
+    readability: "Readability",
+    refactor: "Refactoring Opportunity",
+    warning: "Warning",
+    security: "Security",
+    performance: "Performance",
+    observability: "Observability"
+  }
+
+  @priority_labels %{
+    higher: "higher",
+    high: "high",
+    normal: "normal",
+    low: "low",
+    ignore: "ignore"
+  }
+
+  @doc false
+  def build_moduledoc(category, base_priority, explanations, param_defaults, tags) do
+    check_text = Keyword.get(explanations, :check, "")
+    params_text = Keyword.get(explanations, :params, [])
+
+    cat_label = Map.get(@category_labels, category, to_string(category))
+    pri_label = Map.get(@priority_labels, base_priority, to_string(base_priority))
+
+    sections = [
+      check_text != "" && String.trim(check_text),
+      "Category: `#{cat_label}` / Priority: `#{pri_label}`",
+      tags != [] && "Tags: #{Enum.map_join(tags, ", ", &"`#{&1}`")}",
+      params_section(param_defaults, params_text)
+    ]
+
+    sections
+    |> Enum.filter(& &1)
+    |> Enum.join("\n\n")
+  end
+
+  defp params_section([], _), do: nil
+  defp params_section(_, []), do: nil
+
+  defp params_section(defaults, descriptions) do
+    header = "## Configuration\n\nAccepts the following parameters via `.metacredo.exs`:\n"
+
+    rows =
+      Enum.map_join(defaults, "\n", fn {key, default} ->
+        desc = Keyword.get(descriptions, key, "")
+        "- `#{key}` - #{desc} (default: `#{inspect(default)}`)"
+      end)
+
+    header <> rows
+  end
 end
