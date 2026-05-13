@@ -58,7 +58,11 @@ defmodule MetaCredo.MixProject do
   defp deps do
     [
       # Core dependency
-      {:metastatic, path: "../metastatic"},
+      if System.get_env("LOCAL_METASTATIC") do
+        {:metastatic, path: "../metastatic"}
+      else
+        {:metastatic, "~> 0.21"}
+      end,
 
       # Development and documentation
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
