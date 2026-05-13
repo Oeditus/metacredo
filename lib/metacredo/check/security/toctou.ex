@@ -11,7 +11,25 @@ defmodule MetaCredo.Check.Security.TOCTOU do
       followed by a use function (read, write, open) on the same resource,
       creating a race condition window between check and use.
       """,
-      params: []
+      params: [],
+      examples: [
+        wrong: """
+        # Race window between exists? check and read -- another process may
+        # delete or replace the file between the two calls
+        if File.exists?(path) do
+          content = File.read!(path)
+          process(content)
+        end
+        """,
+        correct: """
+        # Act on the result of the operation itself, not a prior check
+        case File.read(path) do
+          {:ok, content} -> process(content)
+          {:error, :enoent} -> handle_missing(path)
+          {:error, reason} -> handle_error(reason)
+        end
+        """
+      ]
     ]
 
   @check_functions %{

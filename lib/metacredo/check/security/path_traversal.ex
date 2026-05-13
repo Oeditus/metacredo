@@ -10,7 +10,30 @@ defmodule MetaCredo.Check.Security.PathTraversal do
       operations without proper validation, allowing attackers to access
       files outside the intended directory via ../ sequences.
       """,
-      params: []
+      params: [],
+      examples: [
+        wrong: """
+        # Attacker can pass "../../etc/passwd" as filename
+        def download(conn, %{"name" => filename}) do
+          content = File.read!("/var/uploads/" <> filename)
+          send_resp(conn, 200, content)
+        end
+        """,
+        correct: """
+        # Canonicalize the path and verify it stays within the allowed directory
+        @upload_dir "/var/uploads"
+
+        def download(conn, %{"name" => filename}) do
+          safe_path = Path.expand(filename, @upload_dir)
+
+          if String.starts_with?(safe_path, @upload_dir) and File.exists?(safe_path) do
+            send_file(conn, 200, safe_path)
+          else
+            send_resp(conn, 400, "Invalid filename")
+          end
+        end
+        """
+      ]
     ]
 
   @file_functions ~W[

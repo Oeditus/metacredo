@@ -11,6 +11,29 @@ defmodule MetaCredo.Check.Readability.MagicNumber do
       """,
       params: [
         ignored_numbers: "Numbers to skip (default: [0, 1, -1])"
+      ],
+      examples: [
+        wrong: """
+        # Reader must guess what 3600, 5, and 0.15 mean
+        if age >= 18 do
+          discount = total * 0.15
+          expires_at = now + 3600
+          if attempts > 5, do: lock_account()
+        end
+        """,
+        correct: """
+        # Named constants document the intent
+        @minimum_age 18
+        @loyalty_discount 0.15
+        @session_ttl_seconds 3600
+        @max_login_attempts 5
+
+        if age >= @minimum_age do
+          discount = total * @loyalty_discount
+          expires_at = now + @session_ttl_seconds
+          if attempts > @max_login_attempts, do: lock_account()
+        end
+        """
       ]
     ]
 

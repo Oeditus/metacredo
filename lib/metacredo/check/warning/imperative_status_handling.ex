@@ -20,6 +20,30 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
       params: [
         status_field_names: "Field/variable names to watch (default: [\"status\", \"state\"])",
         min_states: "Minimum distinct status values before flagging (default: 3)"
+      ],
+      examples: [
+        wrong: """
+        # Ad-hoc status machine -- missing transitions are easy to miss
+        def process(order) do
+          case order.status do
+            :pending -> {:ok, %{order | status: :processing}}
+            :processing -> {:ok, %{order | status: :shipped}}
+            :shipped -> {:ok, %{order | status: :delivered}}
+            :cancelled -> {:error, :already_cancelled}
+          end
+        end
+        """,
+        correct: """
+        # Model transitions explicitly with Finitomata or gen_statem
+        # The FSM string declares every valid transition:
+        #   idle --> |submit| processing
+        #   processing --> |ship| shipped
+        #   shipped --> |deliver| delivered
+        #   processing --> |cancel| cancelled
+        defmodule OrderFSM do
+          use Finitomata, fsm: @fsm_definition
+        end
+        """
       ]
     ]
 

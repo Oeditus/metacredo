@@ -7,7 +7,19 @@ defmodule MetaCredo.Check.Refactor.DoubleBooleanNegation do
       Detects `!!value` (double boolean negation). While commonly used to
       coerce a value to boolean, it harms readability. Use explicit
       conversion or pattern matching instead.
-      """
+      """,
+      examples: [
+        wrong: """
+        # `!!` coerces to bool but the intent is opaque
+        active? = !!user.confirmed_at
+        has_posts? = !!Enum.count(posts)
+        """,
+        correct: """
+        # Express the boolean intent explicitly
+        active? = not is_nil(user.confirmed_at)
+        has_posts? = Enum.any?(posts)
+        """
+      ]
     ]
 
   @impl true

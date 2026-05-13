@@ -7,7 +7,20 @@ defmodule MetaCredo.Check.Warning.OperationWithConstantResult do
       Detects arithmetic operations with a constant result or identity
       operand: `x * 0` is always 0, and `x + 0` is a no-op identity.
       These suggest dead code or incomplete expressions.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Multiplying by 0 always gives 0 -- the variable is never used
+        total = quantity * 0
+        # Adding 0 is a no-op -- likely a placeholder never replaced
+        adjusted = price + 0
+        """,
+        correct: """
+        # Replace the constant with the actual intended operand
+        total = quantity * unit_price
+        adjusted = price + discount
+        """
+      ]
     ]
 
   @impl true

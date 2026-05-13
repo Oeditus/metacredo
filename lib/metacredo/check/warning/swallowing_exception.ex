@@ -9,7 +9,27 @@ defmodule MetaCredo.Check.Warning.SwallowingException do
       and makes debugging nearly impossible.
 
       Always log with `Logger` or re-raise with `reraise/2`.
-      """
+      """,
+      examples: [
+        wrong: """
+        # The exception disappears into the void -- no trace, no alert
+        try do
+          risky_call()
+        rescue
+          _e -> :ok  # silent swallow
+        end
+        """,
+        correct: """
+        # At minimum, log the exception before returning a fallback
+        try do
+          risky_call()
+        rescue
+          e ->
+            Logger.error("risky_call failed", error: Exception.message(e))
+            :error
+        end
+        """
+      ]
     ]
 
   @logging_names ~W(log error warn warning info debug)

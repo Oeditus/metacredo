@@ -9,7 +9,25 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
       silently fail, and leave orphaned processes.
 
       Use `Task.Supervisor.async_nolink/2` or `Task.Supervisor.start_child/2`.
-      """
+      """,
+      examples: [
+        wrong: """
+        # If the task crashes, the caller may crash too (Task.async links);
+        # Task.start crashes silently with no supervision or restart.
+        Task.async(fn -> send_notification(user) end)
+        Task.start(fn -> process_report(id) end)
+        """,
+        correct: """
+        # Supervised tasks are restarted on failure and cleaned up properly
+        Task.Supervisor.async_nolink(MyApp.TaskSupervisor, fn ->
+          send_notification(user)
+        end)
+
+        Task.Supervisor.start_child(MyApp.TaskSupervisor, fn ->
+          process_report(id)
+        end)
+        """
+      ]
     ]
 
   @unsupervised_patterns ~W(Task.async Task.start Task.async_stream)

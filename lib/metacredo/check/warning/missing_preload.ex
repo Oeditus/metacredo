@@ -10,7 +10,19 @@ defmodule MetaCredo.Check.Warning.MissingPreload do
       inside the loop.
 
       Use `Repo.preload/2` or `from(..., preload: [...])` before iterating.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Accessing posts.author inside map triggers one query per post
+        posts = Repo.all(Post)
+        Enum.map(posts, fn post -> %{title: post.title, author: post.author.name} end)
+        """,
+        correct: """
+        # Preload associations before iterating to issue a single JOIN
+        posts = Post |> Repo.all() |> Repo.preload(:author)
+        Enum.map(posts, fn post -> %{title: post.title, author: post.author.name} end)
+        """
+      ]
     ]
 
   @query_functions ~W(all find query select fetch load findall getall)

@@ -15,6 +15,38 @@ defmodule MetaCredo.Check.Observability.TelemetryInRecursiveFunction do
       """,
       params: [
         telemetry_indicators: "Function name fragments that indicate telemetry/metrics calls"
+      ],
+      examples: [
+        wrong: """
+        # Emits a metric on EVERY recursive step -- N emissions per call
+        def process_nodes([head | tail]) do
+          :telemetry.execute([:my_app, :node_processed], %{count: 1}, %{})
+          do_process(head)
+          process_nodes(tail)
+        end
+
+        def process_nodes([]), do: :ok
+        """,
+        correct: """
+        # Wrap the entry-point once; pass counters through accumulators
+        def process_nodes(nodes) do
+          :telemetry.span(
+            [:my_app, :nodes_processed],
+            %{count: length(nodes)},
+            fn ->
+              result = do_process_nodes(nodes)
+              {result, %{}}
+            end
+          )
+        end
+
+        defp do_process_nodes([head | tail]) do
+          do_process(head)
+          do_process_nodes(tail)
+        end
+
+        defp do_process_nodes([]), do: :ok
+        """
       ]
     ]
 

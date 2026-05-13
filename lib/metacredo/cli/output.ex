@@ -81,9 +81,14 @@ defmodule MetaCredo.CLI.Output do
     :json.encode(data) |> IO.iodata_to_binary()
   end
 
-  @doc "Prints explanation for a check module."
-  @spec print_explanation(module()) :: :ok
-  def print_explanation(check_module) do
+  @doc """
+  Prints explanation for a check module.
+
+  When `issue` is provided (typically from a `file:lineno` invocation), the
+  relevant code snippet is shown first, ±3 lines around the flagged line.
+  """
+  @spec print_explanation(module(), MetaCredo.Issue.t() | nil) :: :ok
+  def print_explanation(check_module, issue \\ nil) do
     IO.puts("")
     IO.puts(colorize("  #{inspect(check_module)}", :bright))
 
@@ -97,6 +102,8 @@ defmodule MetaCredo.CLI.Output do
     if function_exported?(check_module, :base_priority, 0) do
       IO.puts("    Priority: #{check_module.base_priority()}")
     end
+
+    print_code_snippet(issue)
 
     if function_exported?(check_module, :explanations, 0) do
       explanations = check_module.explanations()
@@ -120,6 +127,10 @@ defmodule MetaCredo.CLI.Output do
           IO.puts("      #{key}: #{desc}")
         end)
       end
+
+      if examples = Keyword.get(explanations, :examples) do
+        print_examples(examples)
+      end
     end
 
     IO.puts("")
@@ -127,6 +138,84 @@ defmodule MetaCredo.CLI.Output do
   end
 
   # -- Private --
+
+  # Renders ±3 lines of context around the flagged line from the issue's file.
+  # The flagged line is highlighted in yellow with a `>>` pointer; surrounding
+  # lines are dimmed. Does nothing when no issue or line info is available.
+  defp print_code_snippet(%{filename: filename, line_no: line_no})
+       when is_binary(filename) and is_integer(line_no) do
+    case File.read(filename) do
+      {:ok, source} ->
+        lines = source |> String.split("\n") |> Enum.with_index(1)
+        from = max(1, line_no - 3)
+        to = line_no + 3
+        context = Enum.filter(lines, fn {_l, n} -> n >= from and n <= to end)
+
+        IO.puts("")
+        IO.puts(colorize("    CODE IN QUESTION", :bright))
+        IO.puts("")
+        IO.puts("      " <> colorize("#{filename}:#{line_no}", :faint))
+        IO.puts("")
+
+        Enum.each(context, fn {line, n} ->
+          num = String.pad_leading(to_string(n), 4)
+
+          if n == line_no do
+            IO.puts(colorize("    >> #{num}\u2502 #{line}", :yellow))
+          else
+            IO.puts(IO.ANSI.faint() <> "       #{num}\u2502 #{line}" <> IO.ANSI.reset())
+          end
+        end)
+
+      {:error, _} ->
+        :ok
+    end
+  end
+
+  defp print_code_snippet(_), do: :ok
+
+  # Renders the :examples section from a check's explanations keyword list.
+  # Expects `examples` to be a keyword list with optional :wrong and :correct
+  # keys containing code strings, e.g.:
+  #
+  #   examples: [
+  #     wrong: "value |> String.upcase()",
+  #     correct: "String.upcase(value)"
+  #   ]
+  defp print_examples(examples) do
+    wrong = Keyword.get(examples, :wrong)
+    correct = Keyword.get(examples, :correct)
+
+    if wrong || correct do
+      IO.puts("")
+      IO.puts(colorize("    EXAMPLES", :bright))
+
+      if wrong do
+        IO.puts("")
+        IO.puts(colorize("      Wrong:", :red))
+        IO.puts("")
+        render_code_snippet(wrong, "elixir")
+      end
+
+      if correct do
+        IO.puts("")
+        IO.puts(colorize("      Correct:", :green))
+        IO.puts("")
+        render_code_snippet(correct, "elixir")
+      end
+    end
+  end
+
+  # Syntax-highlights `code` as `lang` via Marcli and prints each line with
+  # six spaces of indentation.
+  defp render_code_snippet(code, lang) do
+    md = "```#{lang}\n#{String.trim(code)}\n```\n"
+
+    md
+    |> Marcli.render()
+    |> String.split("\n")
+    |> Enum.each(&IO.puts("      " <> &1))
+  end
 
   defp print_file_issues({filename, issues}) do
     IO.puts(colorize("  #{filename}", :bright))

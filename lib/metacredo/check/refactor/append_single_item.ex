@@ -7,7 +7,24 @@ defmodule MetaCredo.Check.Refactor.AppendSingleItem do
       Detects `list ++ [item]` pattern. Appending to a list with `++` creates
       a full copy of the left list. Consider prepending with `[item | list]`
       and reversing, or using a different data structure.
-      """
+      """,
+      examples: [
+        wrong: """
+        # O(n) copy of acc on every iteration
+        Enum.reduce(items, [], fn item, acc ->
+          acc ++ [transform(item)]
+        end)
+        """,
+        correct: """
+        # Prepend in O(1) and reverse once at the end
+        items
+        |> Enum.reduce([], fn item, acc -> [transform(item) | acc] end)
+        |> Enum.reverse()
+
+        # Or just use Enum.map/2 directly
+        Enum.map(items, &transform/1)
+        """
+      ]
     ]
 
   @impl true

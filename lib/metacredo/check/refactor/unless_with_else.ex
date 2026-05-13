@@ -6,7 +6,25 @@ defmodule MetaCredo.Check.Refactor.UnlessWithElse do
       check: """
       Detects `unless ... else` constructs. `unless` with an `else` branch
       is confusing -- use `if` with swapped branches instead.
-      """
+      """,
+      examples: [
+        wrong: """
+        # unless + else is a double-negative that is hard to parse
+        unless error?(result) do
+          persist(result)
+        else
+          report_error(result)
+        end
+        """,
+        correct: """
+        # Flip to if with the positive condition in the then-branch
+        if error?(result) do
+          report_error(result)
+        else
+          persist(result)
+        end
+        """
+      ]
     ]
 
   @impl true

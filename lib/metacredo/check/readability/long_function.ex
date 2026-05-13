@@ -10,6 +10,32 @@ defmodule MetaCredo.Check.Readability.LongFunction do
       """,
       params: [
         max_statements: "Maximum allowed statements per function (default: 50)"
+      ],
+      examples: [
+        wrong: """
+        # 60+ statements all crammed into one function
+        def process_order(order, user, opts) do
+          validate_user(user)
+          check_inventory(order)
+          apply_discounts(order)
+          calculate_tax(order)
+          # ... 55 more statements ...
+        end
+        """,
+        correct: """
+        # Compose focused private helpers that each do one thing
+        def process_order(order, user, opts) do
+          with :ok <- validate(order, user),
+               order <- apply_pricing(order, opts),
+               {:ok, order} <- persist(order) do
+            {:ok, order}
+          end
+        end
+
+        defp validate(order, user), do: ...
+        defp apply_pricing(order, opts), do: ...
+        defp persist(order), do: ...
+        """
       ]
     ]
 

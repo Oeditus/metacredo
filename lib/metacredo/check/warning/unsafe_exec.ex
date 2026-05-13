@@ -9,7 +9,25 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
       can lead to command injection vulnerabilities.
 
       Use allow-lists, sanitize inputs, or avoid shelling out entirely.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Attacker can inject shell commands via `user_input`
+        def render_pdf(user_input) do
+          System.cmd("pandoc", [user_input, "-o", "output.pdf"])
+        end
+        """,
+        correct: """
+        # Validate input against an allow-list and use separate args (no shell)
+        @allowed_formats ~w(markdown rst)
+
+        def render_pdf(format) when format in @allowed_formats do
+          System.cmd("pandoc", ["input." <> format, "-o", "output.pdf"])
+        end
+
+        def render_pdf(_), do: {:error, :invalid_format}
+        """
+      ]
     ]
 
   @exec_patterns ~W(cmd exec system eval shell)

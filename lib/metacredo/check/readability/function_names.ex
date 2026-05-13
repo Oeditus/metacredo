@@ -7,7 +7,21 @@ defmodule MetaCredo.Check.Readability.FunctionNames do
       Detects function names that do not follow snake_case convention.
       Elixir functions should be named in snake_case, optionally ending
       with `!` or `?`.
-      """
+      """,
+      examples: [
+        wrong: """
+        # camelCase and PascalCase are not idiomatic in Elixir
+        def processUserData(user), do: ...
+        def GetUserById(id), do: ...
+        """,
+        correct: """
+        # snake_case is the Elixir convention
+        def process_user_data(user), do: ...
+        def get_user_by_id(id), do: ...
+        def valid?, do: ...
+        def save!, do: ...
+        """
+      ]
     ]
 
   @snake_case ~r/^[a-z_][a-z0-9_]*[!?]?$/

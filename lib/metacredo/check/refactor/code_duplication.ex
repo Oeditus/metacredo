@@ -12,6 +12,33 @@ defmodule MetaCredo.Check.Refactor.CodeDuplication do
       params: [
         min_body_size:
           "Minimum number of AST nodes in a function body to consider for duplication (default: 3)"
+      ],
+      examples: [
+        wrong: """
+        # Identical logic copy-pasted across two functions
+        def format_admin_name(user) do
+          first = String.capitalize(user.first_name)
+          last = String.upcase(user.last_name)
+          "\#{first} \#{last}"
+        end
+
+        def format_customer_name(user) do
+          first = String.capitalize(user.first_name)
+          last = String.upcase(user.last_name)
+          "\#{first} \#{last}"
+        end
+        """,
+        correct: """
+        # Extract the shared logic into a single private helper
+        def format_admin_name(user), do: format_name(user)
+        def format_customer_name(user), do: format_name(user)
+
+        defp format_name(user) do
+          first = String.capitalize(user.first_name)
+          last = String.upcase(user.last_name)
+          "\#{first} \#{last}"
+        end
+        """
       ]
     ]
 

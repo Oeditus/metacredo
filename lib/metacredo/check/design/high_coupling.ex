@@ -17,6 +17,33 @@ defmodule MetaCredo.Check.Design.HighCoupling do
       """,
       params: [
         max_dependencies: "Maximum allowed external dependencies (default: 10)"
+      ],
+      examples: [
+        wrong: """
+        # One module touching 12 external concerns -- changes ripple everywhere
+        defmodule OrderPipeline do
+          alias Repo, Mailer, Stripe, Slack, S3, Pdf, Metrics,
+                Logger, Cache, Queue, Sms, Analytics
+
+          def run(order), do: ...
+        end
+        """,
+        correct: """
+        # Introduce a facade or context module; push external calls to adapters
+        defmodule OrderPipeline do
+          alias Orders.Billing
+          alias Orders.Notifications
+          alias Orders.Storage
+
+          def run(order) do
+            with {:ok, _} <- Billing.charge(order),
+                 {:ok, _} <- Storage.persist(order),
+                 :ok <- Notifications.confirm(order) do
+              {:ok, order}
+            end
+          end
+        end
+        """
       ]
     ]
 

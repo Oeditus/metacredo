@@ -7,7 +7,25 @@ defmodule MetaCredo.Check.Warning.BoolOperationOnSameValues do
       Detects boolean operations where both operands are structurally identical,
       such as `x && x`, `x || x`, `x and x`, `x or x`. These are always
       redundant and likely indicate a copy-paste error.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Both sides are identical -- likely a copy-paste mistake
+        if user.active? and user.active? do
+          grant_access()
+        end
+
+        valid = input != nil || input != nil
+        """,
+        correct: """
+        # Use each condition only once; add the missing distinct condition
+        if user.active? and user.verified? do
+          grant_access()
+        end
+
+        valid = input != nil
+        """
+      ]
     ]
 
   @boolean_operators [:and, :or, :&&, :||]

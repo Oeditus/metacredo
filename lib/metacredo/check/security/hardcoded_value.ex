@@ -14,6 +14,21 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
       params: [
         exclude_localhost: "Skip localhost/127.0.0.1 URLs (default: true)",
         exclude_local_ips: "Skip private IP ranges (default: true)"
+      ],
+      examples: [
+        wrong: """
+        # Hardcoded URL embedded directly in the call
+        def fetch_data do
+          HTTPoison.get!("https://api.example.com/v1/data")
+        end
+        """,
+        correct: """
+        # URL read from application configuration
+        def fetch_data do
+          url = Application.fetch_env!(:my_app, :api_url)
+          HTTPoison.get!(url)
+        end
+        """
       ]
     ]
 

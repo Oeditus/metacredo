@@ -7,7 +7,19 @@ defmodule MetaCredo.Check.Warning.OperationOnSameValues do
       Detects arithmetic operations on identical operands that produce a
       constant result: `x - x` is always 0, `x / x` is always 1.
       These are likely copy-paste errors or logic mistakes.
-      """
+      """,
+      examples: [
+        wrong: """
+        # x - x is always 0; x / x is always 1 -- likely a copy-paste bug
+        diff = end_date - end_date  # should be start_date
+        ratio = count / count        # should be total or something else
+        """,
+        correct: """
+        # Use the distinct values that were intended
+        diff = end_date - start_date
+        ratio = count / total
+        """
+      ]
     ]
 
   @constant_result_ops [:-, :/]

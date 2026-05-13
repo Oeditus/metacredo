@@ -74,42 +74,48 @@ defmodule Mix.Tasks.Metacredo do
   end
 
   defp run_explain(check_ref) do
-    module = resolve_check_module(check_ref)
+    {module, issue} = resolve_check_with_context(check_ref)
 
     if module && Code.ensure_loaded?(module) && function_exported?(module, :category, 0) do
-      Output.print_explanation(module)
+      Output.print_explanation(module, issue)
     else
       Mix.shell().error("Check '#{check_ref}' not found.")
     end
   end
 
-  # Resolves a check reference in any of these forms:
+  # Resolves a check reference and returns {module, issue | nil}.
+  #
+  # Supported forms:
   #   file:line  e.g. lib/metacredo/cli/output.ex:42
-  #              Runs a quick analysis on the file; explains the check that
-  #              produced an issue at that line. Falls back to treating the
-  #              file as a check definition if no issue is found.
+  #              Runs a quick analysis on the file; returns the check module
+  #              and issue that produced the first hit at that line.
+  #              Falls back to treating the path as a check definition file.
   #   file       e.g. lib/metacredo/check/security/hardcoded_value.ex
   #   FQN        e.g. MetaCredo.Check.Security.HardcodedValue
   #   short name e.g. HardcodedValue
-  defp resolve_check_module(ref) do
+  defp resolve_check_with_context(ref) do
     cond do
       file_ref?(ref) ->
         {path, line_no} = split_file_ref(ref)
 
-        check_from_location =
+        issue =
           if line_no && File.exists?(path), do: check_at_location(path, line_no)
 
-        check_from_location || path_to_check_module(path)
+        module = (issue && issue.check) || path_to_check_module(path)
+        {module, issue}
 
       String.contains?(ref, ".") ->
-        try do
-          ref |> String.split(".") |> Module.concat()
-        rescue
-          _ -> nil
-        end
+        module =
+          try do
+            ref |> String.split(".") |> Module.concat()
+          rescue
+            _ -> nil
+          end
+
+        {module, nil}
 
       true ->
-        find_check_by_short_name(ref)
+        {find_check_by_short_name(ref), nil}
     end
   end
 
@@ -131,8 +137,8 @@ defmodule Mix.Tasks.Metacredo do
     end
   end
 
-  # Run all enabled checks on a single file and return the check module that
-  # produced the first issue at the given line number.
+  # Run all enabled checks on a single file and return the first issue at the
+  # given line number (or nil if none is found).
   defp check_at_location(file_path, line_no) do
     checks = Config.enabled_checks(Config.default())
     source_files = Sources.find(%{included: [file_path], excluded: []})
@@ -140,10 +146,6 @@ defmodule Mix.Tasks.Metacredo do
     source_files
     |> Execution.run_on_source_files(checks)
     |> Enum.find(&(&1.line_no == line_no))
-    |> case do
-      nil -> nil
-      issue -> issue.check
-    end
   end
 
   # Converts a check source file path to its module by case-insensitive

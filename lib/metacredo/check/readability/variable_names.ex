@@ -6,7 +6,22 @@ defmodule MetaCredo.Check.Readability.VariableNames do
       check: """
       Detects variable names that do not follow snake_case convention.
       Variables in Elixir should use snake_case (e.g. `my_var`, `_unused`).
-      """
+      """,
+      examples: [
+        wrong: """
+        # camelCase variables are not idiomatic Elixir
+        firstName = "Alice"
+        maxRetries = 3
+        isValid = check(input)
+        """,
+        correct: """
+        # snake_case throughout
+        first_name = "Alice"
+        max_retries = 3
+        is_valid = check(input)
+        _unused_result = side_effect()  # prefix _ for intentionally unused vars
+        """
+      ]
     ]
 
   @snake_case ~r/^_?[a-z][a-z0-9_]*[!?]?$/

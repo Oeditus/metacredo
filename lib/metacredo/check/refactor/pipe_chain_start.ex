@@ -7,7 +7,21 @@ defmodule MetaCredo.Check.Refactor.PipeChainStart do
       Detects pipe chains that start with a literal value. Pipes should
       start with a variable or function call, not a raw literal like
       `"hello" |> String.upcase()`.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Literal string fed directly into a pipe -- misleading visual flow
+        result = "hello world" |> String.upcase() |> String.split()
+        """,
+        correct: """
+        # Assign to a variable first, making the data flow explicit
+        input = "hello world"
+        result = input |> String.upcase() |> String.split()
+
+        # Or just use direct function composition without a pipe
+        result = String.split(String.upcase("hello world"))
+        """
+      ]
     ]
 
   @impl true

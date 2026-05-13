@@ -6,7 +6,19 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
       check: """
       Detects module names that do not follow PascalCase convention.
       Module names in Elixir should use PascalCase (e.g. `MyApp.UserAccount`).
-      """
+      """,
+      examples: [
+        wrong: """
+        # snake_case and all-caps names are not idiomatic
+        defmodule my_app.user_account, do: ...
+        defmodule MYAPP.USERREPO, do: ...
+        """,
+        correct: """
+        # PascalCase for every segment separated by dots
+        defmodule MyApp.UserAccount, do: ...
+        defmodule MyApp.Repo, do: ...
+        """
+      ]
     ]
 
   @pascal_case ~r/^[A-Z][a-zA-Z0-9]*(\.[A-Z][a-zA-Z0-9]*)*$/

@@ -9,7 +9,22 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
       the called function returns an error tuple.
 
       Use explicit error handling or add a catch-all clause.
-      """
+      """,
+      examples: [
+        wrong: """
+        # If Repo.insert returns {:error, ...}, the case crashes silently
+        case Repo.insert(changeset) do
+          {:ok, record} -> notify_user(record)
+        end
+        """,
+        correct: """
+        # Handle both success and failure explicitly
+        case Repo.insert(changeset) do
+          {:ok, record} -> notify_user(record)
+          {:error, changeset} -> log_and_return_error(changeset)
+        end
+        """
+      ]
     ]
 
   @impl true

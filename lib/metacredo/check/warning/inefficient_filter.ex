@@ -10,7 +10,18 @@ defmodule MetaCredo.Check.Warning.InefficientFilter do
 
       Push the filter down to the database using `Ecto.Query.where/3` or
       equivalent query-level filtering.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Loads ALL users into memory, then discards most of them
+        users = Repo.all(User)
+        active_users = Enum.filter(users, &(&1.active))
+        """,
+        correct: """
+        # Let the database do the filtering before transferring data
+        active_users = from(u in User, where: u.active == true) |> Repo.all()
+        """
+      ]
     ]
 
   @fetch_all_indicators ~W(all findall getall fetchall tolist)

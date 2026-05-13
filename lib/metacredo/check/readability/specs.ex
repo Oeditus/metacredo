@@ -7,7 +7,21 @@ defmodule MetaCredo.Check.Readability.Specs do
       Detects public functions without a preceding `@spec` type annotation.
       Typespecs improve documentation, enable Dialyzer analysis, and make
       function contracts explicit.
-      """
+      """,
+      examples: [
+        wrong: """
+        # No spec -- callers can't tell what types are accepted or returned
+        def calculate_discount(price, rate) do
+          price * (1 - rate)
+        end
+        """,
+        correct: """
+        @spec calculate_discount(number(), float()) :: float()
+        def calculate_discount(price, rate) do
+          price * (1 - rate)
+        end
+        """
+      ]
     ]
 
   @impl true

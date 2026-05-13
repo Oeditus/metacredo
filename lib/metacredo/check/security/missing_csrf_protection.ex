@@ -9,7 +9,26 @@ defmodule MetaCredo.Check.Security.MissingCSRFProtection do
       Identifies code patterns where state-changing HTTP operations (POST, PUT,
       PATCH, DELETE) are handled without CSRF token validation.
       """,
-      params: []
+      params: [],
+      examples: [
+        wrong: """
+        # POST handler with no CSRF token validation
+        def create(conn, params) do
+          Accounts.create_user(params)
+          redirect(conn, to: ~p"/users")
+        end
+        """,
+        correct: """
+        # Phoenix includes Plug.CSRFProtection by default in the browser pipeline;
+        # ensure it is not bypassed and include the CSRF meta tag in your layout.
+        # In forms, use Phoenix.HTML.Tag.csrf_meta_tag/0 or the built-in form helper.
+        def create(conn, params) do
+          # CSRF is validated automatically by the browser pipeline plug
+          Accounts.create_user(params)
+          redirect(conn, to: ~p"/users")
+        end
+        """
+      ]
     ]
 
   @state_changing_methods ~W[post put patch delete]

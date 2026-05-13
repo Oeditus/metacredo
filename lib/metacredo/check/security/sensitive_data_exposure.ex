@@ -9,7 +9,19 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
       Identifies code patterns where sensitive data such as passwords, tokens,
       secrets, or PII is logged, inspected, or otherwise exposed.
       """,
-      params: []
+      params: [],
+      examples: [
+        wrong: """
+        # Logs a password in plaintext -- visible to anyone with log access
+        Logger.info("User login attempt: \#{user.email}, password: \#{user.password}")
+        IO.inspect(credentials, label: "credentials")
+        """,
+        correct: """
+        # Log only non-sensitive identifiers
+        Logger.info("User login attempt", user_id: user.id, email: user.email)
+        # Never log passwords, tokens, secrets, or PII in plaintext
+        """
+      ]
     ]
 
   @logging_functions ~W[

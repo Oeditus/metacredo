@@ -10,7 +10,24 @@ defmodule MetaCredo.Check.Warning.NPlusOneQuery do
 
       Use `Repo.preload/2`, `from(..., preload: [...])`, or batch the query
       outside the loop.
-      """
+      """,
+      examples: [
+        wrong: """
+        # 1 query to get users + 1 query per user = N+1 total
+        users = Repo.all(User)
+        Enum.map(users, fn user ->
+          org = Repo.get!(Organization, user.org_id)
+          %{name: user.name, org: org.name}
+        end)
+        """,
+        correct: """
+        # Preload associations or use a single JOIN query
+        users = User |> Repo.all() |> Repo.preload(:organization)
+        Enum.map(users, fn user ->
+          %{name: user.name, org: user.organization.name}
+        end)
+        """
+      ]
     ]
 
   @impl true

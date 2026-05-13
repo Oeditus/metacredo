@@ -10,7 +10,28 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
       without apparent validation or sanitization, such as using params
       directly without changeset validation.
       """,
-      params: []
+      params: [],
+      examples: [
+        wrong: """
+        # User input flows directly into a sensitive operation
+        def search(query) do
+          Repo.query!("SELECT * FROM items WHERE name = '\#{query}'")
+        end
+        """,
+        correct: """
+        # Validate and cast input through a changeset before use
+        def search(params) do
+          changeset = SearchForm.changeset(%SearchForm{}, params)
+
+          if changeset.valid? do
+            %{query: query} = Ecto.Changeset.apply_changes(changeset)
+            Items.search(query)
+          else
+            {:error, changeset}
+          end
+        end
+        """
+      ]
     ]
 
   @user_input_sources ~W[

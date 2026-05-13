@@ -10,7 +10,30 @@ defmodule MetaCredo.Check.Security.IncorrectAuthorization do
       checks that appear after the sensitive operation, role-only checks
       without resource ownership verification, and default-allow patterns.
       """,
-      params: []
+      params: [],
+      examples: [
+        wrong: """
+        # Role-only check -- any admin can delete any user's data
+        def delete_document(conn, %{"id" => id}) do
+          if conn.assigns.current_user.role == :admin do
+            Repo.delete!(Document |> Repo.get!(id))
+          end
+        end
+        """,
+        correct: """
+        # Check both role AND resource ownership
+        def delete_document(conn, %{"id" => id}) do
+          user = conn.assigns.current_user
+          document = Repo.get!(Document, id)
+
+          if user.role == :admin and document.owner_id == user.id do
+            Repo.delete!(document)
+          else
+            send_resp(conn, 403, "Forbidden")
+          end
+        end
+        """
+      ]
     ]
 
   @sensitive_operations ~W[

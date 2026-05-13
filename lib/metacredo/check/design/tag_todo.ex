@@ -11,6 +11,23 @@ defmodule MetaCredo.Check.Design.TagTodo do
       """,
       params: [
         include_source_scan: "Also scan raw source lines for TODO (default: true)"
+      ],
+      examples: [
+        wrong: """
+        def create_user(attrs) do
+          # TODO: add email uniqueness validation
+          Repo.insert(%User{} |> User.changeset(attrs))
+        end
+        """,
+        correct: """
+        # Either implement the missing feature now, or remove the comment
+        # and open a properly tracked issue in your project tracker.
+        def create_user(attrs) do
+          %User{}
+          |> User.changeset(attrs)
+          |> Repo.insert()
+        end
+        """
       ]
     ]
 

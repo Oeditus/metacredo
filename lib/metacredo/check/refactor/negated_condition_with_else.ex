@@ -6,7 +6,25 @@ defmodule MetaCredo.Check.Refactor.NegatedConditionWithElse do
       check: """
       Detects `if !condition do ... else ... end` or `if not condition do ... else ... end`.
       Swap the branches and remove the negation for clearer code.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Negation with else forces the reader to mentally invert the condition
+        if !valid?(input) do
+          {:error, :invalid}
+        else
+          process(input)
+        end
+        """,
+        correct: """
+        # Swap branches to eliminate the negation
+        if valid?(input) do
+          process(input)
+        else
+          {:error, :invalid}
+        end
+        """
+      ]
     ]
 
   @impl true

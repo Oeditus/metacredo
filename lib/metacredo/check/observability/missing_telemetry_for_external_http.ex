@@ -31,6 +31,27 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryForExternalHttp do
         http_client_modules: "Fragments matched against the MODULE part of qualified calls",
         http_methods: "HTTP verbs matched against the method (last dot-segment) of calls",
         telemetry_indicators: "Function name fragments indicating telemetry wrapping"
+      ],
+      examples: [
+        wrong: """
+        # Bare HTTP call -- latency and failures are invisible
+        def fetch_user(id) do
+          HTTPoison.get!("https://api.example.com/users/\#{id}")
+        end
+        """,
+        correct: """
+        # Wrap with :telemetry.span/3 to capture latency and errors
+        def fetch_user(id) do
+          :telemetry.span(
+            [:my_app, :external, :fetch_user],
+            %{id: id},
+            fn ->
+              result = HTTPoison.get!("https://api.example.com/users/\#{id}")
+              {result, %{}}
+            end
+          )
+        end
+        """
       ]
     ]
 

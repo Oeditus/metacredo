@@ -64,6 +64,9 @@ defmodule MetaCredo.MixProject do
         {:metastatic, "~> 0.21"}
       end,
 
+      # CLI output
+      {:marcli, "~> 0.3"},
+
       # Development and documentation
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test, runtime: false},

@@ -11,6 +11,22 @@ defmodule MetaCredo.Check.Readability.ComplexConditional do
       """,
       params: [
         max_boolean_depth: "Maximum allowed nesting depth of boolean operations (default: 2)"
+      ],
+      examples: [
+        wrong: """
+        # Deeply nested boolean -- reader must mentally evaluate all paths
+        if user.active and (user.role == :admin or (user.beta and user.verified)) do
+          perform_action()
+        end
+        """,
+        correct: """
+        # Extract sub-conditions into named variables
+        is_privileged = user.role == :admin or (user.beta and user.verified)
+
+        if user.active and is_privileged do
+          perform_action()
+        end
+        """
       ]
     ]
 

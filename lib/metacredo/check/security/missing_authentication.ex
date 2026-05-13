@@ -10,7 +10,25 @@ defmodule MetaCredo.Check.Security.MissingAuthentication do
       (admin, delete, update, payment, etc.) but lack apparent authentication
       verification via plugs, decorators, or middleware.
       """,
-      params: []
+      params: [],
+      examples: [
+        wrong: """
+        # Admin action callable without any authentication check
+        def delete(conn, %{"id" => id}) do
+          Repo.delete!(User |> Repo.get!(id))
+          redirect(conn, to: ~p"/admin/users")
+        end
+        """,
+        correct: """
+        # Require authentication via a plug before the action runs
+        plug :require_authenticated_user
+
+        def delete(conn, %{"id" => id}) do
+          Repo.delete!(User |> Repo.get!(id))
+          redirect(conn, to: ~p"/admin/users")
+        end
+        """
+      ]
     ]
 
   @critical_action_names ~W[

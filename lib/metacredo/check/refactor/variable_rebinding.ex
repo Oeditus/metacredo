@@ -7,7 +7,24 @@ defmodule MetaCredo.Check.Refactor.VariableRebinding do
       Detects the same variable name being assigned multiple times in the
       same block. Rebinding variables makes code harder to follow --
       use distinct names or restructure the code.
-      """
+      """,
+      examples: [
+        wrong: """
+        # What does `result` mean at each point? The reader must trace all assignments.
+        result = fetch_data(id)
+        result = transform(result)
+        result = validate(result)
+        persist(result)
+        """,
+        correct: """
+        # Use pipes to express the transformation pipeline, or distinct names
+        id
+        |> fetch_data()
+        |> transform()
+        |> validate()
+        |> persist()
+        """
+      ]
     ]
 
   @impl true

@@ -10,7 +10,23 @@ defmodule MetaCredo.Check.Consistency.ParameterPatternMatching do
 
       For example, prefer `def foo(%{name: name})` over
       `def foo(map) do name = map.name end`.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Destructuring deferred to the body -- intent is buried
+        def greet(user) do
+          name = user.name
+          role = user.role
+          "Hello \#{name} (\#{role})"
+        end
+        """,
+        correct: """
+        # Shape of the input is explicit in the function head
+        def greet(%{name: name, role: role}) do
+          "Hello \#{name} (\#{role})"
+        end
+        """
+      ]
     ]
 
   @impl true

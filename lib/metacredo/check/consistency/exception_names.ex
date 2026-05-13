@@ -9,7 +9,29 @@ defmodule MetaCredo.Check.Consistency.ExceptionNames do
       types at a glance.
 
       For example, `InvalidInput` should be `InvalidInputError`.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Name implies an error but lacks the conventional suffix
+        defmodule InvalidInput do
+          defexception [:message]
+        end
+
+        defmodule Unauthorized do
+          defexception [:message, :user]
+        end
+        """,
+        correct: """
+        # Suffix makes the error nature unambiguous at a glance
+        defmodule InvalidInputError do
+          defexception [:message]
+        end
+
+        defmodule UnauthorizedError do
+          defexception [:message, :user]
+        end
+        """
+      ]
     ]
 
   @error_indicators ~W(

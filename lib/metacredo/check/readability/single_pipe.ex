@@ -7,7 +7,22 @@ defmodule MetaCredo.Check.Readability.SinglePipe do
       Detects single-step pipe chains (`value |> func`). A single pipe
       adds visual noise without improving readability -- use a direct
       function call instead.
-      """
+      """,
+      examples: [
+        wrong: """
+        # Single pipe -- the |> operator adds no clarity here
+        result = value |> String.trim()
+        name = user.name |> String.downcase()
+        """,
+        correct: """
+        # Direct function call is cleaner for a single step
+        result = String.trim(value)
+        name = String.downcase(user.name)
+
+        # Pipes shine when chaining multiple transformations
+        slug = user.name |> String.downcase() |> String.replace(" ", "-") |> String.trim()
+        """
+      ]
     ]
 
   @impl true

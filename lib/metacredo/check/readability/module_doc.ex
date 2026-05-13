@@ -6,7 +6,37 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
       check: """
       Detects modules without documentation. Every module should have
       a `@moduledoc` describing its purpose.
-      """
+      """,
+      examples: [
+        wrong: """
+        # No documentation -- purpose is unknown to new readers
+        defmodule MyApp.Accounts.UserToken do
+          use Ecto.Schema
+          import Ecto.Changeset
+
+          schema "user_tokens" do
+            ...
+          end
+        end
+        """,
+        correct: """
+        defmodule MyApp.Accounts.UserToken do
+          @moduledoc \"\"\"
+          Manages authentication tokens for users.
+
+          Tokens are single-use, time-limited, and scoped to a specific
+          context (e.g. password reset or email confirmation).
+          \"\"\"
+
+          use Ecto.Schema
+          import Ecto.Changeset
+
+          schema "user_tokens" do
+            ...
+          end
+        end
+        """
+      ]
     ]
 
   @impl true

@@ -11,6 +11,20 @@ defmodule MetaCredo.Check.Readability.LargeNumbers do
       """,
       params: [
         min_digits: "Minimum number of digits to trigger the check (default: 5)"
+      ],
+      examples: [
+        wrong: """
+        # Hard to tell at a glance how large these numbers are
+        @max_connections 100000
+        @timeout_ms 86400000
+        budget = 1250000
+        """,
+        correct: """
+        # Underscore separators make magnitude immediately obvious
+        @max_connections 100_000
+        @timeout_ms 86_400_000
+        budget = 1_250_000
+        """
       ]
     ]
 
