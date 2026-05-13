@@ -143,7 +143,8 @@ defmodule MetaCredo.CLI.Output do
         "    #{colorize(label, color)} " <>
           colorize("#{line_info}#{col_info}", :faint) <>
           " #{issue.message}" <>
-          trigger_suffix(issue.trigger)
+          trigger_suffix(issue.trigger) <>
+          check_suffix(issue.check)
       )
     end)
 
@@ -152,6 +153,15 @@ defmodule MetaCredo.CLI.Output do
 
   defp trigger_suffix(nil), do: ""
   defp trigger_suffix(trigger), do: colorize(" (#{trigger})", :faint)
+
+  defp check_suffix(nil), do: ""
+
+  defp check_suffix(check_module) when is_atom(check_module) do
+    short = check_module |> inspect() |> String.split(".") |> List.last()
+    colorize(" [#{short}]", :faint)
+  end
+
+  defp check_suffix(_), do: ""
 
   defp print_footer(file_count, check_count, timing, summary) do
     timing_s = if timing, do: Float.round(timing / 1000, 1), else: 0.0

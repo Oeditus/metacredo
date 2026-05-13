@@ -73,16 +73,83 @@ defmodule Mix.Tasks.Metacredo do
     end
   end
 
-  defp run_explain(check_name) do
-    module =
-      check_name
-      |> String.split(".")
-      |> Module.concat()
+  defp run_explain(check_ref) do
+    Mix.Task.run("app.start", [])
+    module = resolve_check_module(check_ref)
 
-    if Code.ensure_loaded?(module) and function_exported?(module, :category, 0) do
+    if module && Code.ensure_loaded?(module) && function_exported?(module, :category, 0) do
       Output.print_explanation(module)
     else
-      Mix.shell().error("Check #{check_name} not found.")
+      Mix.shell().error("Check '#{check_ref}' not found.")
+    end
+  end
+
+  # Accepts:
+  #   - file:line  e.g. lib/metacredo/check/security/hardcoded_value.ex:51
+  #   - file path  e.g. lib/metacredo/check/security/hardcoded_value.ex
+  #   - FQN        e.g. MetaCredo.Check.Security.HardcodedValue
+  #   - short name e.g. HardcodedValue
+  defp resolve_check_module(ref) do
+    cond do
+      file_ref?(ref) ->
+        ref |> String.replace(~r/:\d+$/, "") |> path_to_check_module()
+
+      String.contains?(ref, ".") ->
+        try do
+          ref |> String.split(".") |> Module.concat()
+        rescue
+          _ -> nil
+        end
+
+      true ->
+        find_check_by_short_name(ref)
+    end
+  end
+
+  defp file_ref?(str), do: Regex.match?(~r/\.exs?(:\d+)?$/, str)
+
+  # Converts a source file path to its check module by case-insensitive
+  # comparison against all loaded :metacredo modules. This correctly handles
+  # multi-capitalisation like "MetaCredo" (vs the naive "Metacredo").
+  defp path_to_check_module(path) do
+    relative =
+      path
+      |> String.replace(~r/^(lib|test|src)\//, "")
+      |> String.replace(~r/\.exs?$/, "")
+
+    expected =
+      relative
+      |> String.split("/")
+      |> Enum.map(fn part ->
+        part |> String.split("_") |> Enum.map(&String.capitalize/1) |> Enum.join()
+      end)
+      |> Enum.join(".")
+      |> String.downcase()
+
+    case :application.get_key(:metacredo, :modules) do
+      {:ok, modules} ->
+        Enum.find(modules, fn mod ->
+          mod_lower =
+            mod |> to_string() |> String.replace("Elixir.", "") |> String.downcase()
+
+          mod_lower == expected and function_exported?(mod, :category, 0)
+        end)
+
+      _ ->
+        nil
+    end
+  end
+
+  defp find_check_by_short_name(short_name) do
+    case :application.get_key(:metacredo, :modules) do
+      {:ok, modules} ->
+        Enum.find(modules, fn mod ->
+          last = mod |> to_string() |> String.split(".") |> List.last()
+          last == short_name and function_exported?(mod, :category, 0)
+        end)
+
+      _ ->
+        nil
     end
   end
 
