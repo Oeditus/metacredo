@@ -14,7 +14,7 @@ defmodule Mix.Tasks.Metacredo do
 
   use Mix.Task
 
-  alias MetaCredo.{CLI.Output, Execution}
+  alias MetaCredo.{CLI.Output, Config, Execution, Sources}
 
   @impl Mix.Task
   def run(argv) do
@@ -74,7 +74,6 @@ defmodule Mix.Tasks.Metacredo do
   end
 
   defp run_explain(check_ref) do
-    Mix.Task.run("app.start", [])
     module = resolve_check_module(check_ref)
 
     if module && Code.ensure_loaded?(module) && function_exported?(module, :category, 0) do
@@ -84,15 +83,23 @@ defmodule Mix.Tasks.Metacredo do
     end
   end
 
-  # Accepts:
-  #   - file:line  e.g. lib/metacredo/check/security/hardcoded_value.ex:51
-  #   - file path  e.g. lib/metacredo/check/security/hardcoded_value.ex
-  #   - FQN        e.g. MetaCredo.Check.Security.HardcodedValue
-  #   - short name e.g. HardcodedValue
+  # Resolves a check reference in any of these forms:
+  #   file:line  e.g. lib/metacredo/cli/output.ex:42
+  #              Runs a quick analysis on the file; explains the check that
+  #              produced an issue at that line. Falls back to treating the
+  #              file as a check definition if no issue is found.
+  #   file       e.g. lib/metacredo/check/security/hardcoded_value.ex
+  #   FQN        e.g. MetaCredo.Check.Security.HardcodedValue
+  #   short name e.g. HardcodedValue
   defp resolve_check_module(ref) do
     cond do
       file_ref?(ref) ->
-        ref |> String.replace(~r/:\d+$/, "") |> path_to_check_module()
+        {path, line_no} = split_file_ref(ref)
+
+        check_from_location =
+          if line_no && File.exists?(path), do: check_at_location(path, line_no)
+
+        check_from_location || path_to_check_module(path)
 
       String.contains?(ref, ".") ->
         try do
@@ -108,9 +115,39 @@ defmodule Mix.Tasks.Metacredo do
 
   defp file_ref?(str), do: Regex.match?(~r/\.exs?(:\d+)?$/, str)
 
-  # Converts a source file path to its check module by case-insensitive
-  # comparison against all loaded :metacredo modules. This correctly handles
-  # multi-capitalisation like "MetaCredo" (vs the naive "Metacredo").
+  defp split_file_ref(str) do
+    case String.split(str, ":") do
+      [path, line] ->
+        case Integer.parse(line) do
+          {n, ""} -> {path, n}
+          _ -> {str, nil}
+        end
+
+      [path] ->
+        {path, nil}
+
+      _ ->
+        {str, nil}
+    end
+  end
+
+  # Run all enabled checks on a single file and return the check module that
+  # produced the first issue at the given line number.
+  defp check_at_location(file_path, line_no) do
+    checks = Config.enabled_checks(Config.default())
+    source_files = Sources.find(%{included: [file_path], excluded: []})
+
+    source_files
+    |> Execution.run_on_source_files(checks)
+    |> Enum.find(&(&1.line_no == line_no))
+    |> case do
+      nil -> nil
+      issue -> issue.check
+    end
+  end
+
+  # Converts a check source file path to its module by case-insensitive
+  # comparison against all compiled check modules in the build directory.
   defp path_to_check_module(path) do
     relative =
       path
@@ -126,30 +163,38 @@ defmodule Mix.Tasks.Metacredo do
       |> Enum.join(".")
       |> String.downcase()
 
-    case :application.get_key(:metacredo, :modules) do
-      {:ok, modules} ->
-        Enum.find(modules, fn mod ->
-          mod_lower =
-            mod |> to_string() |> String.replace("Elixir.", "") |> String.downcase()
-
-          mod_lower == expected and function_exported?(mod, :category, 0)
-        end)
-
-      _ ->
-        nil
-    end
+    metacredo_check_modules()
+    |> Enum.find(fn mod ->
+      mod |> to_string() |> String.replace("Elixir.", "") |> String.downcase() == expected
+    end)
   end
 
   defp find_check_by_short_name(short_name) do
-    case :application.get_key(:metacredo, :modules) do
-      {:ok, modules} ->
-        Enum.find(modules, fn mod ->
-          last = mod |> to_string() |> String.split(".") |> List.last()
-          last == short_name and function_exported?(mod, :category, 0)
-        end)
+    metacredo_check_modules()
+    |> Enum.find(fn mod ->
+      mod |> to_string() |> String.split(".") |> List.last() == short_name
+    end)
+  end
 
-      _ ->
-        nil
+  # Enumerate all MetaCredo check modules by scanning the compiled BEAM files.
+  # This is reliable in a Mix task context where :application.get_key/2 may
+  # not yet be available.
+  defp metacredo_check_modules do
+    ebin = Path.join([Mix.Project.build_path(), "lib", "metacredo", "ebin"])
+
+    if File.dir?(ebin) do
+      ebin
+      |> File.ls!()
+      |> Enum.filter(&String.match?(&1, ~r/^Elixir\.MetaCredo\.Check\./i))
+      |> Enum.flat_map(fn beam_file ->
+        mod = beam_file |> String.trim_trailing(".beam") |> String.to_atom()
+
+        if Code.ensure_loaded?(mod) and function_exported?(mod, :category, 0),
+          do: [mod],
+          else: []
+      end)
+    else
+      []
     end
   end
 
