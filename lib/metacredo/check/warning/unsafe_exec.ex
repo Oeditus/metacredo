@@ -12,9 +12,9 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
       """
     ]
 
-  @exec_patterns ~w(cmd exec system eval shell)
+  @exec_patterns ~W(cmd exec system eval shell)
 
-  @user_input_patterns ~w(
+  @user_input_patterns ~W(
     input param query body user request
     params args argv payload data
   )

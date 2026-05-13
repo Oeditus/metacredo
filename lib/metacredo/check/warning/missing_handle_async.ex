@@ -14,12 +14,12 @@ defmodule MetaCredo.Check.Warning.MissingHandleAsync do
       """
     ]
 
-  @async_spawn_indicators ~w(
+  @async_spawn_indicators ~W(
     create_task run_async start spawn
     task async future start_async assign_async
   )
 
-  @blocking_indicators ~w(
+  @blocking_indicators ~W(
     get post put delete request fetch download
     query execute transaction sleep wait
   )

@@ -56,7 +56,7 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
 
   defp traverse(node, issues, _source_file), do: {node, issues}
 
-  @side_effect_fns ~w(
+  @side_effect_fns ~W(
     send put_in update_in Process.send Agent.update
     Logger.info Logger.warn Logger.error Logger.debug Logger.warning
     IO.puts IO.write IO.inspect

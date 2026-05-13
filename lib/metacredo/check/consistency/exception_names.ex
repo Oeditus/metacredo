@@ -12,7 +12,7 @@ defmodule MetaCredo.Check.Consistency.ExceptionNames do
       """
     ]
 
-  @error_indicators ~w(
+  @error_indicators ~W(
     invalid unauthorized forbidden
     not_found timeout conflict
     unavailable bad failed

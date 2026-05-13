@@ -23,7 +23,7 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
       ]
     ]
 
-  @default_transition_verbs ~w(
+  @default_transition_verbs ~W(
     activate deactivate publish unpublish archive unarchive
     suspend resume complete cancel approve reject
     enable disable start stop pause draft

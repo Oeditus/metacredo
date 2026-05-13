@@ -14,12 +14,12 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
       """
     ]
 
-  @blocking_operations ~w(
+  @blocking_operations ~W(
     get post query find read write
     sleep wait fetch load download
   )
 
-  @middleware_functions ~w(call init plug)
+  @middleware_functions ~W(call init plug)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do

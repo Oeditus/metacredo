@@ -35,23 +35,6 @@ defmodule MetaCredo.Config do
           }
         }
 
-  @default_config %{
-    name: "default",
-    files: %{
-      included: ["lib/", "src/", "web/"],
-      excluded: [
-        ~r"/_build/",
-        ~r"/deps/",
-        ~r"/node_modules/",
-        ~r"/\.git/"
-      ]
-    },
-    checks: %{
-      enabled: :all,
-      disabled: []
-    }
-  }
-
   @doc "Reads and parses the configuration file, falling back to defaults."
   @spec read(String.t() | nil) :: config()
   def read(config_file \\ nil) do
@@ -60,13 +43,30 @@ defmodule MetaCredo.Config do
     if path && File.exists?(path) do
       parse_file(path)
     else
-      @default_config
+      default()
     end
   end
 
   @doc "Returns the default configuration."
   @spec default() :: config()
-  def default, do: @default_config
+  def default do
+    %{
+      name: "default",
+      files: %{
+        included: ["lib/", "src/", "web/"],
+        excluded: [
+          ~r"/_build/",
+          ~r"/deps/",
+          ~r"/node_modules/",
+          ~r"/\.git/"
+        ]
+      },
+      checks: %{
+        enabled: :all,
+        disabled: []
+      }
+    }
+  end
 
   @doc "Returns the list of enabled checks from config."
   @spec enabled_checks(config()) :: [{module(), Keyword.t()}]
@@ -108,19 +108,19 @@ defmodule MetaCredo.Config do
 
       _ ->
         Logger.warning("Invalid config file #{path}, using defaults")
-        @default_config
+        default()
     end
   rescue
     e ->
       Logger.warning("Failed to read config #{path}: #{inspect(e)}, using defaults")
-      @default_config
+      default()
   end
 
   defp normalize_config(config) do
     %{
       name: Map.get(config, :name, "default"),
-      files: Map.get(config, :files, @default_config.files),
-      checks: Map.get(config, :checks, @default_config.checks)
+      files: Map.get(config, :files, default().files),
+      checks: Map.get(config, :checks, default().checks)
     }
   end
 

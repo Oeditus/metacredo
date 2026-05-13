@@ -107,6 +107,6 @@ defmodule MetaCredo.Check.Consistency.ParameterPatternMatching do
   defp find_body_destructures(_, _param_names), do: []
 
   defp field_access?(fn_name) do
-    String.contains?(fn_name, ".") or fn_name in ~w(Map.get Map.fetch! elem get_in)
+    String.contains?(fn_name, ".") or fn_name in ~W(Map.get Map.fetch! elem get_in)
   end
 end

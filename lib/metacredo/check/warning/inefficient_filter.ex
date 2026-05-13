@@ -13,7 +13,7 @@ defmodule MetaCredo.Check.Warning.InefficientFilter do
       """
     ]
 
-  @fetch_all_indicators ~w(all findall getall fetchall tolist)
+  @fetch_all_indicators ~W(all findall getall fetchall tolist)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do

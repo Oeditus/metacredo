@@ -10,7 +10,7 @@ defmodule MetaCredo.Check.Warning.DebugLeftover do
       """
     ]
 
-  @debug_functions ~w(
+  @debug_functions ~W(
     IO.inspect IO.puts IO.write
     dbg IEx.pry binding
     console.log console.debug console.warn console.error

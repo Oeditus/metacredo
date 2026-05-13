@@ -12,7 +12,7 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
       """
     ]
 
-  @unsupervised_patterns ~w(Task.async Task.start Task.async_stream)
+  @unsupervised_patterns ~W(Task.async Task.start Task.async_stream)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do

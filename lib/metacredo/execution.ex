@@ -4,7 +4,7 @@ defmodule MetaCredo.Execution do
   issue collection, and inline-disable filtering.
   """
 
-  alias MetaCredo.{Config, Issue, Sources, SourceFile}
+  alias MetaCredo.{Config, Issue, SourceFile, Sources}
   alias Metastatic.AST
 
   require Logger

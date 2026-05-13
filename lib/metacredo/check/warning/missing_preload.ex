@@ -13,7 +13,7 @@ defmodule MetaCredo.Check.Warning.MissingPreload do
       """
     ]
 
-  @query_functions ~w(all find query select fetch load findall getall)
+  @query_functions ~W(all find query select fetch load findall getall)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do

@@ -12,8 +12,8 @@ defmodule MetaCredo.Check.Warning.RaiseInsideRescue do
       """
     ]
 
-  @bare_raise_names ~w(raise throw)
-  @reraise_names ~w(reraise)
+  @bare_raise_names ~W(raise throw)
+  @reraise_names ~W(reraise)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do

@@ -1,7 +1,7 @@
 defmodule MetaCredo.Check.ReadabilityDesignTest do
   use MetaCredo.CheckCase
 
-  alias MetaCredo.Check.{Readability, Design, Refactor, Observability}
+  alias MetaCredo.Check.{Design, Observability, Readability, Refactor}
 
   # ── MagicNumber ────────────────────────────────────────────────────
 

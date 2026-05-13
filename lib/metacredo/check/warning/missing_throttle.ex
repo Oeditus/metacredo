@@ -14,19 +14,19 @@ defmodule MetaCredo.Check.Warning.MissingThrottle do
       """
     ]
 
-  @expensive_operations ~w(
+  @expensive_operations ~W(
     search query aggregate calculate compute
     export generate process batch
     upload download convert transform
     analyze scan report render
   )
 
-  @rate_limit_indicators ~w(
+  @rate_limit_indicators ~W(
     ratelimit rate_limit throttle limiter debounce
     hammer exrated plug_attack bucket
   )
 
-  @api_context_indicators ~w(
+  @api_context_indicators ~W(
     post put patch delete create update
     action controller endpoint handler
     api webhook mutation

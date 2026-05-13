@@ -15,7 +15,7 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
       """
     ]
 
-  @blocking_indicators ~w(
+  @blocking_indicators ~W(
     get post put delete patch request
     fetch download upload
     read write open
@@ -23,7 +23,7 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
     sleep wait
   )
 
-  @async_callback_names ~w(
+  @async_callback_names ~W(
     handle_call handle_cast handle_info handle_continue
     mount handle_event handle_params handle_async
   )

@@ -12,7 +12,7 @@ defmodule MetaCredo.Check.Warning.LazyLogging do
       """
     ]
 
-  @logger_names ~w(Logger.info Logger.warn Logger.error Logger.debug Logger.warning Logger.notice Logger.critical Logger.alert Logger.emergency)
+  @logger_names ~W(Logger.info Logger.warn Logger.error Logger.debug Logger.warning Logger.notice Logger.critical Logger.alert Logger.emergency)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do

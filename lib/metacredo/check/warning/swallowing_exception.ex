@@ -12,8 +12,8 @@ defmodule MetaCredo.Check.Warning.SwallowingException do
       """
     ]
 
-  @logging_names ~w(log error warn warning info debug)
-  @reraise_names ~w(raise reraise throw)
+  @logging_names ~W(log error warn warning info debug)
+  @reraise_names ~W(raise reraise throw)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do
