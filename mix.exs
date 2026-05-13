@@ -4,6 +4,7 @@ defmodule MetaCredo.MixProject do
   @app :metacredo
   @version "0.1.0"
   @source_url "https://github.com/Oeditus/metacredo"
+  @homepage_url "https://oeditus.com"
 
   def project do
     [
@@ -20,14 +21,15 @@ defmodule MetaCredo.MixProject do
       aliases: aliases(),
       test_coverage: [tool: ExCoveralls],
       dialyzer: [
-        plt_file: {:no_warn, ".dialyzer/dialyzer.plt"},
+        plt_file: {:no_warn, "priv/plts/dialyzer.plt"},
         plt_add_deps: :app_tree,
         plt_add_apps: [:mix, :ex_unit],
-        plt_core_path: ".dialyzer",
+        plt_core_path: "priv/plts",
         list_unused_filters: true
       ],
       name: "MetaCredo",
-      source_url: @source_url
+      source_url: @source_url,
+      homepage_url: @homepage_url
     ]
   end
 
@@ -55,6 +57,7 @@ defmodule MetaCredo.MixProject do
 
   defp deps do
     [
+      # Core dependency
       {:metastatic, path: "../metastatic"},
 
       # Development and documentation
@@ -66,27 +69,43 @@ defmodule MetaCredo.MixProject do
 
   defp aliases do
     [
-      quality: ["format", "compile --warnings-as-errors"],
-      "quality.ci": ["format --check-formatted", "compile --warnings-as-errors"]
+      quality: ["format", "compile --warnings-as-errors", "dialyzer"],
+      "quality.ci": [
+        "format --check-formatted",
+        "compile --warnings-as-errors",
+        "dialyzer"
+      ]
     ]
   end
 
   defp description do
     """
     Cross-language static code analysis tool built on MetaAST.
-    Write a check once, run it across Python, JavaScript, Elixir, Ruby, Haskell, Erlang,
-    and all other languages supported by Metastatic.
+    Write a check once, run it across Python, JavaScript, Elixir, Ruby,
+    Haskell, Erlang, and all other languages supported by Metastatic.
+    Provides 45 checks covering security (CWE Top 25), code quality,
+    readability, design, observability, and refactoring opportunities.
     """
   end
 
   defp package do
     [
       name: @app,
-      files: ~w(lib .formatter.exs mix.exs README.md LICENSE CHANGELOG.md),
-      licenses: ["GPL-3.0"],
+      files: ~w(
+        lib
+        priv/images
+        .formatter.exs
+        mix.exs
+        README.md
+        LICENSE
+        CHANGELOG.md
+      ),
+      licenses: ["MIT"],
       maintainers: ["Aleksei Matiushkin"],
       links: %{
         "GitHub" => @source_url,
+        "Homepage" => @homepage_url,
+        "Changelog" => "#{@source_url}/blob/main/CHANGELOG.md",
         "Documentation" => "https://hexdocs.pm/#{@app}"
       }
     ]
@@ -95,10 +114,125 @@ defmodule MetaCredo.MixProject do
   defp docs do
     [
       main: "readme",
-      extras: ["README.md", "CHANGELOG.md"],
+      logo: "priv/images/logo-48x48.png",
+      assets: %{"priv/images" => "assets"},
+      extras: extras(),
+      extra_section: "GUIDES",
       source_url: @source_url,
       source_ref: "v#{@version}",
-      authors: ["Aleksei Matiushkin"]
+      homepage_url: @homepage_url,
+      formatters: ["html", "epub"],
+      groups_for_modules: groups_for_modules(),
+      nest_modules_by_prefix: [
+        MetaCredo.Check.Security,
+        MetaCredo.Check.Warning,
+        MetaCredo.Check.Readability,
+        MetaCredo.Check.Refactor,
+        MetaCredo.Check.Design,
+        MetaCredo.Check.Observability,
+        MetaCredo.CLI
+      ],
+      before_closing_body_tag: &before_closing_body_tag/1,
+      authors: ["Aleksei Matiushkin"],
+      canonical: "https://hexdocs.pm/#{@app}",
+      skip_undefined_reference_warnings_on: ["CHANGELOG.md"]
     ]
   end
+
+  defp extras do
+    [
+      "README.md",
+      LICENSE: [title: "License"],
+      "CHANGELOG.md": [title: "Changelog"]
+    ]
+  end
+
+  defp groups_for_modules do
+    [
+      Core: [
+        MetaCredo,
+        MetaCredo.Check,
+        MetaCredo.Config,
+        MetaCredo.Execution,
+        MetaCredo.Issue,
+        MetaCredo.SourceFile,
+        MetaCredo.Sources
+      ],
+      CLI: [
+        MetaCredo.CLI.Output
+      ],
+      "Security Checks": [
+        MetaCredo.Check.Security.HardcodedValue,
+        MetaCredo.Check.Security.SQLInjection,
+        MetaCredo.Check.Security.XSSVulnerability,
+        MetaCredo.Check.Security.PathTraversal,
+        MetaCredo.Check.Security.SSRFVulnerability,
+        MetaCredo.Check.Security.SensitiveDataExposure,
+        MetaCredo.Check.Security.MissingCSRFProtection,
+        MetaCredo.Check.Security.InsecureDirectObjectReference,
+        MetaCredo.Check.Security.UnrestrictedFileUpload,
+        MetaCredo.Check.Security.TOCTOU,
+        MetaCredo.Check.Security.MissingAuthentication,
+        MetaCredo.Check.Security.MissingAuthorization,
+        MetaCredo.Check.Security.IncorrectAuthorization,
+        MetaCredo.Check.Security.ImproperInputValidation,
+        MetaCredo.Check.Security.InlineJavascript
+      ],
+      "Warning Checks": [
+        MetaCredo.Check.Warning.MissingErrorHandling,
+        MetaCredo.Check.Warning.SilentErrorCase,
+        MetaCredo.Check.Warning.SwallowingException,
+        MetaCredo.Check.Warning.NPlusOneQuery,
+        MetaCredo.Check.Warning.MissingPreload,
+        MetaCredo.Check.Warning.UnmanagedTask,
+        MetaCredo.Check.Warning.SyncOverAsync,
+        MetaCredo.Check.Warning.MissingHandleAsync,
+        MetaCredo.Check.Warning.DirectStructUpdate,
+        MetaCredo.Check.Warning.CallbackHell,
+        MetaCredo.Check.Warning.BlockingInPlug,
+        MetaCredo.Check.Warning.MissingThrottle,
+        MetaCredo.Check.Warning.InefficientFilter,
+        MetaCredo.Check.Warning.ImperativeStatusHandling
+      ],
+      "Readability Checks": [
+        MetaCredo.Check.Readability.MagicNumber,
+        MetaCredo.Check.Readability.DeepNesting,
+        MetaCredo.Check.Readability.LongFunction,
+        MetaCredo.Check.Readability.ComplexConditional,
+        MetaCredo.Check.Readability.LongParameterList
+      ],
+      "Refactor Checks": [
+        MetaCredo.Check.Refactor.SimplifyConditional,
+        MetaCredo.Check.Refactor.DeadCode,
+        MetaCredo.Check.Refactor.CodeDuplication
+      ],
+      "Design Checks": [
+        MetaCredo.Check.Design.HighComplexity,
+        MetaCredo.Check.Design.LowCohesion,
+        MetaCredo.Check.Design.HighCoupling
+      ],
+      "Observability Checks": [
+        MetaCredo.Check.Observability.MissingTelemetryInObanWorker,
+        MetaCredo.Check.Observability.MissingTelemetryInLiveviewMount,
+        MetaCredo.Check.Observability.MissingTelemetryInAuthPlug,
+        MetaCredo.Check.Observability.MissingTelemetryForExternalHttp,
+        MetaCredo.Check.Observability.TelemetryInRecursiveFunction
+      ]
+    ]
+  end
+
+  defp before_closing_body_tag(:html) do
+    """
+    <script>
+      document.addEventListener("keydown", function(e) {
+        if (e.key === "/" && !e.ctrlKey && !e.metaKey) {
+          e.preventDefault();
+          document.querySelector(".search-input")?.focus();
+        }
+      });
+    </script>
+    """
+  end
+
+  defp before_closing_body_tag(_), do: ""
 end

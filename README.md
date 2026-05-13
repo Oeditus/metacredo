@@ -1,9 +1,16 @@
-# MetaCredo
+<p align="center">
+  <img src="priv/images/logo-200.png" alt="MetaCredo" width="200">
+</p>
 
-Cross-language static code analysis tool built on [MetaAST](https://github.com/Oeditus/metastatic).
+<h1 align="center">MetaCredo</h1>
 
-Write a check once, run it across Elixir, Python, Ruby, Haskell, Erlang, and
-all other languages supported by Metastatic.
+<p align="center">
+  Cross-language static code analysis tool built on
+  <a href="https://github.com/Oeditus/metastatic">MetaAST</a>.
+  <br/>
+  Write a check once, run it across Elixir, Python, Ruby, Haskell, Erlang, and
+  all other languages supported by Metastatic.
+</p>
 
 ## Installation
 
@@ -208,6 +215,24 @@ checks: %{
   and remains available for Elixir-only projects.
 - **MetaCredo** covers the same detection patterns as OeditusCredo but
   works across all languages supported by Metastatic.
+
+## Credits
+
+MetaCredo stands on the shoulders of
+[Credo](https://github.com/rrrene/credo) by Rene Foehring -- an
+exceptional static analysis tool that has shaped how the entire Elixir
+community thinks about code quality, consistency, and teaching through
+tooling. Credo's design -- its check behaviour, category system,
+configuration format, and the philosophy that a linter should *teach*
+rather than merely scold -- served as the direct architectural
+inspiration for MetaCredo. We are grateful for the years of thoughtful
+work that went into Credo and the high bar it set for developer
+experience in static analysis.
+
+MetaCredo extends that vision across language boundaries: every check
+operates on Metastatic's unified MetaAST, so the same insight that
+helps an Elixir developer can help a Python, Ruby, or Haskell developer
+just as well.
 
 ## Roadmap
 
