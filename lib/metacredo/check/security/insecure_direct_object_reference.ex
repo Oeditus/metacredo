@@ -43,7 +43,8 @@ defmodule MetaCredo.Check.Security.InsecureDirectObjectReference do
        when is_list(meta) do
     func_name = Keyword.get(meta, :name, "")
 
-    if fetch_function?(func_name) and has_user_supplied_id?(args) do
+    if fetch_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
+         has_user_supplied_id?(args) do
       line = Keyword.get(meta, :line)
 
       {node,

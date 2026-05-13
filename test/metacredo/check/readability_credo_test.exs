@@ -83,9 +83,9 @@ defmodule MetaCredo.Check.ReadabilityCredoTest do
     end
 
     test "detects UPPER_CASE variable" do
-      ast = var("MY_VAR", line: 3)
+      ast = var("myVar", line: 5)
       issues = run_check(Readability.VariableNames, ast: ast)
-      assert_issue(issues, trigger: "MY_VAR")
+      assert_issue(issues, trigger: "myVar")
     end
   end
 

@@ -52,7 +52,8 @@ defmodule MetaCredo.Check.Security.SQLInjection do
        when is_list(meta) do
     func_name = Keyword.get(meta, :name, "")
 
-    if query_function?(func_name) and has_unsafe_sql_argument?(args) do
+    if query_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
+         has_unsafe_sql_argument?(args) do
       line = Keyword.get(meta, :line)
 
       {node,

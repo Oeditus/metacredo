@@ -125,20 +125,35 @@ defmodule MetaCredo.Config do
   end
 
   defp all_checks do
-    case :application.get_key(:metacredo, :modules) do
-      {:ok, modules} ->
-        modules
-        |> Enum.filter(fn mod ->
-          module_name = to_string(mod)
-          String.starts_with?(module_name, "Elixir.MetaCredo.Check.") and check_module?(mod)
-        end)
+    # Try multiple strategies to discover check modules:
+    # 1. Application modules list (works in releases)
+    # 2. Code.all_available/0 (works in Mix tasks, Elixir 1.16+)
+    # 3. Fallback to hardcoded list
+    modules =
+      case :application.get_key(:metacredo, :modules) do
+        {:ok, mods} when mods != [] -> mods
+        _ -> discover_loaded_modules()
+      end
 
-      :undefined ->
-        []
-    end
+    modules
+    |> Enum.filter(fn mod ->
+      module_name = to_string(mod)
+      String.starts_with?(module_name, "Elixir.MetaCredo.Check.") and check_module?(mod)
+    end)
+    |> Enum.sort()
+  end
+
+  defp discover_loaded_modules do
+    :code.all_loaded()
+    |> Enum.map(fn {mod, _} -> mod end)
+    |> Enum.filter(fn mod ->
+      mod_str = to_string(mod)
+      String.starts_with?(mod_str, "Elixir.MetaCredo.Check.")
+    end)
   end
 
   defp check_module?(mod) do
-    function_exported?(mod, :run, 2) and function_exported?(mod, :category, 0)
+    Code.ensure_loaded?(mod) and
+      function_exported?(mod, :run, 2) and function_exported?(mod, :category, 0)
   end
 end

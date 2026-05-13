@@ -27,21 +27,32 @@ defmodule MetaCredo.CLI.Output do
 
   @doc "Prints the full analysis report to stdout."
   @spec print_report(map()) :: :ok
-  def print_report(%{issues: issues, summary: summary, timing_ms: timing, source_files: files}) do
+  def print_report(report) do
+    %{
+      issues: issues,
+      summary: summary,
+      timing_ms: timing,
+      source_files: files,
+      checks_run: checks
+    } = report
+
+    file_count = length(files)
+    check_count = length(checks)
+
+    IO.puts("Checking #{file_count} source files ...")
     IO.puts("")
 
     if issues == [] do
-      IO.puts(colorize("  No issues found in #{length(files)} source files.", :green))
+      print_footer(file_count, check_count, timing, summary)
     else
       issues
       |> Enum.group_by(& &1.filename)
       |> Enum.sort()
       |> Enum.each(&print_file_issues/1)
 
-      print_summary(summary, timing)
+      print_footer(file_count, check_count, timing, summary)
     end
 
-    IO.puts("")
     :ok
   end
 
@@ -142,22 +153,44 @@ defmodule MetaCredo.CLI.Output do
   defp trigger_suffix(nil), do: ""
   defp trigger_suffix(trigger), do: colorize(" (#{trigger})", :faint)
 
-  defp print_summary(summary, timing) do
-    IO.puts(colorize("  Summary:", :bright))
-
-    Enum.each(summary.by_category, fn {cat, count} ->
-      color = Map.get(@category_colors, cat, :default)
-      label = Map.get(@category_labels, cat, "[?]")
-      IO.puts("    #{colorize(label, color)} #{cat}: #{count}")
-    end)
-
+  defp print_footer(file_count, check_count, timing, summary) do
+    timing_s = if timing, do: Float.round(timing / 1000, 1), else: 0.0
     total = summary.total
-    IO.puts("")
-    IO.puts("  #{total} issue#{if total == 1, do: "", else: "s"} found.")
 
-    if timing do
-      IO.puts(colorize("  Analysis took #{timing}ms.", :faint))
+    IO.puts("")
+
+    IO.puts(
+      "Analysis took #{timing_s} seconds (running #{check_count} checks on #{file_count} files)"
+    )
+
+    if total == 0 do
+      IO.puts(colorize("#{file_count} source files, found no issues.", :green))
+    else
+      IO.puts(
+        "#{file_count} source files, found #{total} issue#{if total == 1, do: "", else: "s"}."
+      )
+
+      IO.puts("")
+      IO.puts(colorize("  Summary:", :bright))
+
+      Enum.each(summary.by_category, fn {cat, count} ->
+        color = Map.get(@category_colors, cat, :default)
+        label = Map.get(@category_labels, cat, "[?]")
+        IO.puts("    #{colorize(label, color)} #{cat}: #{count}")
+      end)
     end
+
+    IO.puts("")
+
+    IO.puts(
+      "Showing priority issues: " <>
+        colorize("^", :red) <>
+        " " <>
+        colorize("^", :yellow) <>
+        " " <>
+        colorize(">", :blue) <>
+        "  (use `mix metacredo explain` to explain issues, `mix metacredo --help` for options)."
+    )
   end
 
   defp colorize(text, :bright), do: IO.ANSI.bright() <> text <> IO.ANSI.reset()

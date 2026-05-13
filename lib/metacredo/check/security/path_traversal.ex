@@ -60,7 +60,8 @@ defmodule MetaCredo.Check.Security.PathTraversal do
     line = Keyword.get(meta, :line)
 
     cond do
-      file_function?(func_name) and has_tainted_arg?(args) ->
+      file_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
+          has_tainted_arg?(args) ->
         {node,
          [
            format_issue(source_file,
@@ -74,7 +75,8 @@ defmodule MetaCredo.Check.Security.PathTraversal do
            | issues
          ]}
 
-      path_function?(func_name) and has_tainted_arg?(args) ->
+      path_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
+          has_tainted_arg?(args) ->
         {node,
          [
            format_issue(source_file,

@@ -57,7 +57,7 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
     line = Keyword.get(meta, :line)
 
     cond do
-      logging_function?(func_name) ->
+      logging_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) ->
         sensitive_items =
           args
           |> Enum.flat_map(&check_sensitive_in_arg/1)

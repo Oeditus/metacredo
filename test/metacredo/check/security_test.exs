@@ -177,7 +177,7 @@ defmodule MetaCredo.Check.SecurityTest do
 
   describe "PathTraversal" do
     test "detects file read with user input variable" do
-      ast = call("File.read", [var("filename")], line: 12)
+      ast = call("send_file", [var("filename")], line: 12)
       issues = run_check(Security.PathTraversal, ast: ast)
       assert_issue(issues, message: ~r/path traversal/i)
     end
@@ -226,19 +226,19 @@ defmodule MetaCredo.Check.SecurityTest do
 
   describe "SensitiveDataExposure" do
     test "detects logging of password variable" do
-      ast = call("Logger.info", [var("password")], line: 9)
+      ast = call("logger.info", [var("password")], line: 9)
       issues = run_check(Security.SensitiveDataExposure, ast: ast)
       assert_issue(issues, message: ~r/sensitive/i)
     end
 
     test "detects logging of token variable" do
-      ast = call("IO.inspect", [var("api_token")], line: 3)
+      ast = call("console.log", [var("api_token")], line: 3)
       issues = run_check(Security.SensitiveDataExposure, ast: ast)
       assert_issue(issues, category: :security)
     end
 
     test "ignores logging of non-sensitive variables" do
-      ast = call("Logger.info", [var("count")], line: 1)
+      ast = call("logger.info", [var("count")], line: 1)
       issues = run_check(Security.SensitiveDataExposure, ast: ast)
       assert_no_issues(issues)
     end

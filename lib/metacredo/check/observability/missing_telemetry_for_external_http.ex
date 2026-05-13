@@ -45,7 +45,8 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryForExternalHttp do
        when is_list(meta) do
     name = Keyword.get(meta, :name, "")
 
-    if http_call?(name, http_indicators) and not telemetry_call?(name, telemetry_indicators) do
+    if http_call?(name, http_indicators) and not telemetry_call?(name, telemetry_indicators) and
+         not CheckUtils.safe_stdlib_call?(name) do
       line = Keyword.get(meta, :line)
 
       issue =

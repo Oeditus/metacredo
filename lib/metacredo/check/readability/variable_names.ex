@@ -9,7 +9,7 @@ defmodule MetaCredo.Check.Readability.VariableNames do
       """
     ]
 
-  @snake_case ~r/^_?[a-z][a-z0-9_]*$/
+  @snake_case ~r/^_?[a-z][a-z0-9_]*[!?]?$/
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do
@@ -27,7 +27,8 @@ defmodule MetaCredo.Check.Readability.VariableNames do
        when is_list(meta) do
     name_str = to_string(name)
 
-    if name_str != "" and not Regex.match?(@snake_case, name_str) do
+    if name_str != "" and not CheckUtils.special_variable?(name_str) and
+         not Regex.match?(@snake_case, name_str) do
       line = Keyword.get(meta, :line)
 
       issue =

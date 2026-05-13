@@ -38,7 +38,7 @@ defmodule MetaCredo.CLI.OutputTest do
   describe "print_report/1" do
     test "prints clean report for no issues" do
       output = capture_io(fn -> Output.print_report(sample_report()) end)
-      assert output =~ "No issues found"
+      assert output =~ "found no issues"
     end
 
     test "prints issues grouped by file" do
@@ -57,7 +57,7 @@ defmodule MetaCredo.CLI.OutputTest do
     test "prints summary with issue count" do
       issues = [sample_issue(), sample_issue(message: "Another")]
       output = capture_io(fn -> Output.print_report(sample_report(issues)) end)
-      assert output =~ "2 issues found"
+      assert output =~ "found 2 issues"
     end
 
     test "prints timing information" do

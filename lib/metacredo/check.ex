@@ -84,6 +84,7 @@ defmodule MetaCredo.Check do
       @behaviour MetaCredo.Check
 
       alias MetaCredo.{Check, Issue, SourceFile}
+      alias MetaCredo.Check.Utils, as: CheckUtils
       alias Metastatic.AST
 
       @impl true

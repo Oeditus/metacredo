@@ -26,7 +26,7 @@ defmodule MetaCredo.Check.Warning.MissingHandleAsync do
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do
-    {_, issues} =
+    {_, {issues, _}} =
       source_file
       |> SourceFile.ast()
       |> AST.prewalk({[], false}, fn node, acc -> traverse(node, acc, source_file) end)
