@@ -8,14 +8,16 @@ defmodule MetaCredo.Check.Refactor.FilterCount do
       `Enum.count(enumerable, fun)` instead for a single-pass operation.
       """,
       examples: [
-        wrong: """
-        # Two passes: filter allocates an intermediate list, then count traverses it
-        active_count = Enum.filter(users, &(&1.active)) |> Enum.count()
-        """,
-        correct: """
-        # Single pass with a predicate -- no intermediate list
-        active_count = Enum.count(users, &(&1.active))
-        """
+        elixir: [
+          wrong: """
+          # Two passes: filter allocates an intermediate list, then count traverses it
+          active_count = Enum.filter(users, &(&1.active)) |> Enum.count()
+          """,
+          correct: """
+          # Single pass with a predicate -- no intermediate list
+          active_count = Enum.count(users, &(&1.active))
+          """
+        ]
       ]
     ]
 

@@ -86,9 +86,12 @@ defmodule MetaCredo.CLI.Output do
 
   When `issue` is provided (typically from a `file:lineno` invocation), the
   relevant code snippet is shown first, ±3 lines around the flagged line.
+
+  `language` controls which language-keyed examples entry is rendered.
+  When `nil`, the examples section is omitted entirely.
   """
-  @spec print_explanation(module(), MetaCredo.Issue.t() | nil) :: :ok
-  def print_explanation(check_module, issue \\ nil) do
+  @spec print_explanation(module(), MetaCredo.Issue.t() | nil, atom() | nil) :: :ok
+  def print_explanation(check_module, issue \\ nil, language \\ nil) do
     IO.puts("")
     IO.puts(colorize("  #{inspect(check_module)}", :bright))
 
@@ -128,8 +131,10 @@ defmodule MetaCredo.CLI.Output do
         end)
       end
 
-      if examples = Keyword.get(explanations, :examples) do
-        print_examples(examples)
+      if language do
+        if examples = Keyword.get(explanations, :examples) do
+          print_examples(examples, language)
+        end
       end
     end
 
@@ -175,34 +180,49 @@ defmodule MetaCredo.CLI.Output do
   defp print_code_snippet(_), do: :ok
 
   # Renders the :examples section from a check's explanations keyword list.
-  # Expects `examples` to be a keyword list with optional :wrong and :correct
-  # keys containing code strings, e.g.:
+  # Expects `examples` to be a keyword list keyed by language atom, each value
+  # being a keyword list with optional :wrong and :correct keys, e.g.:
   #
   #   examples: [
-  #     wrong: "value |> String.upcase()",
-  #     correct: "String.upcase(value)"
+  #     elixir: [
+  #       wrong: "value |> String.upcase()",
+  #       correct: "String.upcase(value)"
+  #     ],
+  #     erlang: [
+  #       wrong: "string:to_upper(Value)",
+  #       correct: "string:uppercase(Value)"
+  #     ]
   #   ]
-  defp print_examples(examples) do
-    wrong = Keyword.get(examples, :wrong)
-    correct = Keyword.get(examples, :correct)
+  #
+  # If no entry exists for `language`, the section is omitted.
+  defp print_examples(examples, language) do
+    case Keyword.get(examples, language) do
+      nil ->
+        :ok
 
-    if wrong || correct do
-      IO.puts("")
-      IO.puts(colorize("    EXAMPLES", :bright))
+      lang_examples ->
+        wrong = Keyword.get(lang_examples, :wrong)
+        correct = Keyword.get(lang_examples, :correct)
 
-      if wrong do
-        IO.puts("")
-        IO.puts(colorize("      Wrong:", :red))
-        IO.puts("")
-        render_code_snippet(wrong, "elixir")
-      end
+        if wrong || correct do
+          IO.puts("")
+          IO.puts(colorize("    EXAMPLES", :bright))
+          lang_str = to_string(language)
 
-      if correct do
-        IO.puts("")
-        IO.puts(colorize("      Correct:", :green))
-        IO.puts("")
-        render_code_snippet(correct, "elixir")
-      end
+          if wrong do
+            IO.puts("")
+            IO.puts(colorize("      Wrong:", :red))
+            IO.puts("")
+            render_code_snippet(wrong, lang_str)
+          end
+
+          if correct do
+            IO.puts("")
+            IO.puts(colorize("      Correct:", :green))
+            IO.puts("")
+            render_code_snippet(correct, lang_str)
+          end
+        end
     end
   end
 

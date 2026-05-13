@@ -12,24 +12,26 @@ defmodule MetaCredo.Check.Security.InsecureDirectObjectReference do
       """,
       params: [],
       examples: [
-        wrong: """
-        # Any authenticated user can fetch any post by ID
-        def show(conn, %{"id" => id}) do
-          post = Repo.get!(Post, id)
-          render(conn, :show, post: post)
-        end
-        """,
-        correct: """
-        # Scope the query to the current user's owned resources
-        def show(conn, %{"id" => id}) do
-          post =
-            conn.assigns.current_user
-            |> Ecto.assoc(:posts)
-            |> Repo.get!(id)
+        elixir: [
+          wrong: """
+          # Any authenticated user can fetch any post by ID
+          def show(conn, %{"id" => id}) do
+            post = Repo.get!(Post, id)
+            render(conn, :show, post: post)
+          end
+          """,
+          correct: """
+          # Scope the query to the current user's owned resources
+          def show(conn, %{"id" => id}) do
+            post =
+              conn.assigns.current_user
+              |> Ecto.assoc(:posts)
+              |> Repo.get!(id)
 
-          render(conn, :show, post: post)
-        end
-        """
+            render(conn, :show, post: post)
+          end
+          """
+        ]
       ]
     ]
 

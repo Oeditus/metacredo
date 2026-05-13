@@ -12,21 +12,23 @@ defmodule MetaCredo.Check.Security.SQLInjection do
       """,
       params: [],
       examples: [
-        wrong: """
-        # Attacker can terminate the query and inject arbitrary SQL
-        def search(conn, %{"term" => term}) do
-          Repo.query!("SELECT * FROM products WHERE name = '" <> term <> "'")
-        end
-        """,
-        correct: """
-        # Always use parameterized queries or Ecto query composition
-        def search(conn, %{"term" => term}) do
-          from(p in Product, where: p.name == ^term) |> Repo.all()
-        end
+        elixir: [
+          wrong: """
+          # Attacker can terminate the query and inject arbitrary SQL
+          def search(conn, %{"term" => term}) do
+            Repo.query!("SELECT * FROM products WHERE name = '" <> term <> "'")
+          end
+          """,
+          correct: """
+          # Always use parameterized queries or Ecto query composition
+          def search(conn, %{"term" => term}) do
+            from(p in Product, where: p.name == ^term) |> Repo.all()
+          end
 
-        # For raw SQL, use parameterized form:
-        # Repo.query!("SELECT * FROM products WHERE name = $1", [term])
-        """
+          # For raw SQL, use parameterized form:
+          # Repo.query!("SELECT * FROM products WHERE name = $1", [term])
+          """
+        ]
       ]
     ]
 

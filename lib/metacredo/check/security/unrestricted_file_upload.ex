@@ -12,34 +12,36 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
       """,
       params: [],
       examples: [
-        wrong: """
-        # No validation -- attacker can upload .php, .exe, or oversized files
-        def upload(conn, %{"file" => upload}) do
-          File.write!("/var/uploads/" <> upload.filename, upload.binary)
-          json(conn, %{ok: true})
-        end
-        """,
-        correct: """
-        @allowed_extensions ~w(.jpg .jpeg .png .gif .webp)
-        @max_size_bytes 5 * 1024 * 1024  # 5 MB
-
-        def upload(conn, %{"file" => upload}) do
-          ext = Path.extname(upload.filename) |> String.downcase()
-
-          cond do
-            ext not in @allowed_extensions ->
-              send_resp(conn, 422, "File type not allowed")
-
-            upload.size > @max_size_bytes ->
-              send_resp(conn, 422, "File too large")
-
-            true ->
-              safe_name = Ecto.UUID.generate() <> ext
-              File.write!("/var/uploads/" <> safe_name, upload.binary)
-              json(conn, %{path: safe_name})
+        elixir: [
+          wrong: """
+          # No validation -- attacker can upload .php, .exe, or oversized files
+          def upload(conn, %{"file" => upload}) do
+            File.write!("/var/uploads/" <> upload.filename, upload.binary)
+            json(conn, %{ok: true})
           end
-        end
-        """
+          """,
+          correct: """
+          @allowed_extensions ~w(.jpg .jpeg .png .gif .webp)
+          @max_size_bytes 5 * 1024 * 1024  # 5 MB
+
+          def upload(conn, %{"file" => upload}) do
+            ext = Path.extname(upload.filename) |> String.downcase()
+
+            cond do
+              ext not in @allowed_extensions ->
+                send_resp(conn, 422, "File type not allowed")
+
+              upload.size > @max_size_bytes ->
+                send_resp(conn, 422, "File too large")
+
+              true ->
+                safe_name = Ecto.UUID.generate() <> ext
+                File.write!("/var/uploads/" <> safe_name, upload.binary)
+                json(conn, %{path: safe_name})
+            end
+          end
+          """
+        ]
       ]
     ]
 

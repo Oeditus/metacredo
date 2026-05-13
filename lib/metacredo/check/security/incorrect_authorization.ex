@@ -12,27 +12,29 @@ defmodule MetaCredo.Check.Security.IncorrectAuthorization do
       """,
       params: [],
       examples: [
-        wrong: """
-        # Role-only check -- any admin can delete any user's data
-        def delete_document(conn, %{"id" => id}) do
-          if conn.assigns.current_user.role == :admin do
-            Repo.delete!(Document |> Repo.get!(id))
+        elixir: [
+          wrong: """
+          # Role-only check -- any admin can delete any user's data
+          def delete_document(conn, %{"id" => id}) do
+            if conn.assigns.current_user.role == :admin do
+              Repo.delete!(Document |> Repo.get!(id))
+            end
           end
-        end
-        """,
-        correct: """
-        # Check both role AND resource ownership
-        def delete_document(conn, %{"id" => id}) do
-          user = conn.assigns.current_user
-          document = Repo.get!(Document, id)
+          """,
+          correct: """
+          # Check both role AND resource ownership
+          def delete_document(conn, %{"id" => id}) do
+            user = conn.assigns.current_user
+            document = Repo.get!(Document, id)
 
-          if user.role == :admin and document.owner_id == user.id do
-            Repo.delete!(document)
-          else
-            send_resp(conn, 403, "Forbidden")
+            if user.role == :admin and document.owner_id == user.id do
+              Repo.delete!(document)
+            else
+              send_resp(conn, 403, "Forbidden")
+            end
           end
-        end
-        """
+          """
+        ]
       ]
     ]
 

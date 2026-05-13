@@ -13,27 +13,29 @@ defmodule MetaCredo.Check.Warning.MissingHandleAsync do
       expensive work asynchronously and handle results in `handle_async/3`.
       """,
       examples: [
-        wrong: """
-        # Blocks the LiveView process -- user sees a frozen UI during the request
-        def handle_event("search", %{"q" => q}, socket) do
-          results = HTTPoison.get!("https://api.example.com/search?q=\#{q}")
-          {:noreply, assign(socket, :results, results)}
-        end
-        """,
-        correct: """
-        # Delegate to start_async/3 and update socket in handle_async/3
-        def handle_event("search", %{"q" => q}, socket) do
-          {:noreply, start_async(socket, :search, fn -> do_search(q) end)}
-        end
+        elixir: [
+          wrong: """
+          # Blocks the LiveView process -- user sees a frozen UI during the request
+          def handle_event("search", %{"q" => q}, socket) do
+            results = HTTPoison.get!("https://api.example.com/search?q=\#{q}")
+            {:noreply, assign(socket, :results, results)}
+          end
+          """,
+          correct: """
+          # Delegate to start_async/3 and update socket in handle_async/3
+          def handle_event("search", %{"q" => q}, socket) do
+            {:noreply, start_async(socket, :search, fn -> do_search(q) end)}
+          end
 
-        def handle_async(:search, {:ok, results}, socket) do
-          {:noreply, assign(socket, :results, results)}
-        end
+          def handle_async(:search, {:ok, results}, socket) do
+            {:noreply, assign(socket, :results, results)}
+          end
 
-        def handle_async(:search, {:exit, reason}, socket) do
-          {:noreply, assign(socket, :error, reason)}
-        end
-        """
+          def handle_async(:search, {:exit, reason}, socket) do
+            {:noreply, assign(socket, :error, reason)}
+          end
+          """
+        ]
       ]
     ]
 

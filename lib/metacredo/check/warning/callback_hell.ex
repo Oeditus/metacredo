@@ -16,29 +16,31 @@ defmodule MetaCredo.Check.Warning.CallbackHell do
         max_nesting: "Maximum allowed nesting depth (default: 3)"
       ],
       examples: [
-        wrong: """
-        # 4 levels of nesting -- the happy path is buried in indentation
-        case fetch_user(id) do
-          {:ok, user} ->
-            case fetch_org(user.org_id) do
-              {:ok, org} ->
-                case check_quota(org) do
-                  :ok -> perform_action(user, org)
-                  {:error, r} -> {:error, r}
-                end
-              {:error, r} -> {:error, r}
-            end
-          {:error, r} -> {:error, r}
-        end
-        """,
-        correct: """
-        # Flatten with `with` -- error handling stays at the edges
-        with {:ok, user} <- fetch_user(id),
-             {:ok, org} <- fetch_org(user.org_id),
-             :ok <- check_quota(org) do
-          perform_action(user, org)
-        end
-        """
+        elixir: [
+          wrong: """
+          # 4 levels of nesting -- the happy path is buried in indentation
+          case fetch_user(id) do
+            {:ok, user} ->
+              case fetch_org(user.org_id) do
+                {:ok, org} ->
+                  case check_quota(org) do
+                    :ok -> perform_action(user, org)
+                    {:error, r} -> {:error, r}
+                  end
+                {:error, r} -> {:error, r}
+              end
+            {:error, r} -> {:error, r}
+          end
+          """,
+          correct: """
+          # Flatten with `with` -- error handling stays at the edges
+          with {:ok, user} <- fetch_user(id),
+               {:ok, org} <- fetch_org(user.org_id),
+               :ok <- check_quota(org) do
+            perform_action(user, org)
+          end
+          """
+        ]
       ]
     ]
 

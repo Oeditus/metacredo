@@ -9,21 +9,23 @@ defmodule MetaCredo.Check.Refactor.AppendSingleItem do
       and reversing, or using a different data structure.
       """,
       examples: [
-        wrong: """
-        # O(n) copy of acc on every iteration
-        Enum.reduce(items, [], fn item, acc ->
-          acc ++ [transform(item)]
-        end)
-        """,
-        correct: """
-        # Prepend in O(1) and reverse once at the end
-        items
-        |> Enum.reduce([], fn item, acc -> [transform(item) | acc] end)
-        |> Enum.reverse()
+        elixir: [
+          wrong: """
+          # O(n) copy of acc on every iteration
+          Enum.reduce(items, [], fn item, acc ->
+            acc ++ [transform(item)]
+          end)
+          """,
+          correct: """
+          # Prepend in O(1) and reverse once at the end
+          items
+          |> Enum.reduce([], fn item, acc -> [transform(item) | acc] end)
+          |> Enum.reverse()
 
-        # Or just use Enum.map/2 directly
-        Enum.map(items, &transform/1)
-        """
+          # Or just use Enum.map/2 directly
+          Enum.map(items, &transform/1)
+          """
+        ]
       ]
     ]
 

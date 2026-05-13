@@ -12,27 +12,29 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
       """,
       params: [],
       examples: [
-        wrong: """
-        # Authenticated user can delete ANY post, not just their own
-        def delete(conn, %{"id" => id}) do
-          Repo.delete!(Post |> Repo.get!(id))
-          json(conn, %{ok: true})
-        end
-        """,
-        correct: """
-        # Verify ownership before performing the destructive operation
-        def delete(conn, %{"id" => id}) do
-          user = conn.assigns.current_user
-          post = Repo.get!(Post, id)
-
-          if post.user_id == user.id do
-            Repo.delete!(post)
+        elixir: [
+          wrong: """
+          # Authenticated user can delete ANY post, not just their own
+          def delete(conn, %{"id" => id}) do
+            Repo.delete!(Post |> Repo.get!(id))
             json(conn, %{ok: true})
-          else
-            send_resp(conn, 403, "Forbidden")
           end
-        end
-        """
+          """,
+          correct: """
+          # Verify ownership before performing the destructive operation
+          def delete(conn, %{"id" => id}) do
+            user = conn.assigns.current_user
+            post = Repo.get!(Post, id)
+
+            if post.user_id == user.id do
+              Repo.delete!(post)
+              json(conn, %{ok: true})
+            else
+              send_resp(conn, 403, "Forbidden")
+            end
+          end
+          """
+        ]
       ]
     ]
 

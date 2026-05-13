@@ -12,20 +12,22 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
       Use `Ecto.Changeset.change/2` or a dedicated changeset function instead.
       """,
       examples: [
-        wrong: """
-        # Bypasses changeset validation -- constraints and callbacks are skipped
-        def update_email(user, new_email) do
-          Repo.update!(%User{user | email: new_email})
-        end
-        """,
-        correct: """
-        # Go through a changeset so validations and constraints are enforced
-        def update_email(user, new_email) do
-          user
-          |> User.email_changeset(%{email: new_email})
-          |> Repo.update()
-        end
-        """
+        elixir: [
+          wrong: """
+          # Bypasses changeset validation -- constraints and callbacks are skipped
+          def update_email(user, new_email) do
+            Repo.update!(%User{user | email: new_email})
+          end
+          """,
+          correct: """
+          # Go through a changeset so validations and constraints are enforced
+          def update_email(user, new_email) do
+            user
+            |> User.email_changeset(%{email: new_email})
+            |> Repo.update()
+          end
+          """
+        ]
       ]
     ]
 

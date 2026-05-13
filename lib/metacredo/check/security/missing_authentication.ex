@@ -12,22 +12,24 @@ defmodule MetaCredo.Check.Security.MissingAuthentication do
       """,
       params: [],
       examples: [
-        wrong: """
-        # Admin action callable without any authentication check
-        def delete(conn, %{"id" => id}) do
-          Repo.delete!(User |> Repo.get!(id))
-          redirect(conn, to: ~p"/admin/users")
-        end
-        """,
-        correct: """
-        # Require authentication via a plug before the action runs
-        plug :require_authenticated_user
+        elixir: [
+          wrong: """
+          # Admin action callable without any authentication check
+          def delete(conn, %{"id" => id}) do
+            Repo.delete!(User |> Repo.get!(id))
+            redirect(conn, to: ~p"/admin/users")
+          end
+          """,
+          correct: """
+          # Require authentication via a plug before the action runs
+          plug :require_authenticated_user
 
-        def delete(conn, %{"id" => id}) do
-          Repo.delete!(User |> Repo.get!(id))
-          redirect(conn, to: ~p"/admin/users")
-        end
-        """
+          def delete(conn, %{"id" => id}) do
+            Repo.delete!(User |> Repo.get!(id))
+            redirect(conn, to: ~p"/admin/users")
+          end
+          """
+        ]
       ]
     ]
 

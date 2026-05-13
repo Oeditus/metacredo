@@ -13,18 +13,20 @@ defmodule MetaCredo.Check.Readability.LongParameterList do
         max_params: "Maximum allowed parameters per function (default: 5)"
       ],
       examples: [
-        wrong: """
-        # Callers must remember argument order; adding a 7th param is a breaking change
-        def create_user(name, email, age, role, org_id, plan, permissions) do
-          ...
-        end
-        """,
-        correct: """
-        # Group related parameters into a map or struct
-        def create_user(%{name: name, email: email, role: role} = attrs) do
-          ...
-        end
-        """
+        elixir: [
+          wrong: """
+          # Callers must remember argument order; adding a 7th param is a breaking change
+          def create_user(name, email, age, role, org_id, plan, permissions) do
+            ...
+          end
+          """,
+          correct: """
+          # Group related parameters into a map or struct
+          def create_user(%{name: name, email: email, role: role} = attrs) do
+            ...
+          end
+          """
+        ]
       ]
     ]
 

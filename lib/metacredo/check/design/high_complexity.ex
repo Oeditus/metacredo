@@ -20,38 +20,40 @@ defmodule MetaCredo.Check.Design.HighComplexity do
         max_complexity: "Maximum allowed cyclomatic complexity (default: 10)"
       ],
       examples: [
-        wrong: """
-        # High cyclomatic complexity: every branch adds a path
-        def process(order) do
-          if order.type == :premium do
-            if order.region == :eu do
-              if order.amount > 1000, do: apply_vat(order), else: order
+        elixir: [
+          wrong: """
+          # High cyclomatic complexity: every branch adds a path
+          def process(order) do
+            if order.type == :premium do
+              if order.region == :eu do
+                if order.amount > 1000, do: apply_vat(order), else: order
+              else
+                if order.amount > 500, do: apply_discount(order), else: order
+              end
             else
-              if order.amount > 500, do: apply_discount(order), else: order
-            end
-          else
-            if order.flags[:promotional] do
-              if order.coupon, do: apply_coupon(order), else: order
-            else
-              order
+              if order.flags[:promotional] do
+                if order.coupon, do: apply_coupon(order), else: order
+              else
+                order
+              end
             end
           end
-        end
-        """,
-        correct: """
-        # Delegate each decision path to focused helpers
-        def process(order) do
-          order
-          |> apply_regional_pricing()
-          |> apply_discounts()
-        end
+          """,
+          correct: """
+          # Delegate each decision path to focused helpers
+          def process(order) do
+            order
+            |> apply_regional_pricing()
+            |> apply_discounts()
+          end
 
-        defp apply_regional_pricing(%{type: :premium, region: :eu} = order),
-          do: maybe_apply_vat(order, 1000)
-        defp apply_regional_pricing(%{type: :premium} = order),
-          do: maybe_apply_discount(order, 500)
-        defp apply_regional_pricing(order), do: order
-        """
+          defp apply_regional_pricing(%{type: :premium, region: :eu} = order),
+            do: maybe_apply_vat(order, 1000)
+          defp apply_regional_pricing(%{type: :premium} = order),
+            do: maybe_apply_discount(order, 500)
+          defp apply_regional_pricing(order), do: order
+          """
+        ]
       ]
     ]
 

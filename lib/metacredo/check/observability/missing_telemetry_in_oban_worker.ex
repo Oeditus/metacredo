@@ -17,25 +17,27 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInObanWorker do
         telemetry_indicators: "Function name fragments that indicate telemetry calls"
       ],
       examples: [
-        wrong: """
-        # Job execution is invisible -- no way to track duration or failures
-        def perform(%Oban.Job{args: %{"user_id" => id}}) do
-          send_digest_email(id)
-        end
-        """,
-        correct: """
-        # Wrap with :telemetry.span/3 to track success, failure, and latency
-        def perform(%Oban.Job{args: %{"user_id" => id}}) do
-          :telemetry.span(
-            [:my_app, :workers, :digest_email],
-            %{user_id: id},
-            fn ->
-              result = send_digest_email(id)
-              {result, %{}}
-            end
-          )
-        end
-        """
+        elixir: [
+          wrong: """
+          # Job execution is invisible -- no way to track duration or failures
+          def perform(%Oban.Job{args: %{"user_id" => id}}) do
+            send_digest_email(id)
+          end
+          """,
+          correct: """
+          # Wrap with :telemetry.span/3 to track success, failure, and latency
+          def perform(%Oban.Job{args: %{"user_id" => id}}) do
+            :telemetry.span(
+              [:my_app, :workers, :digest_email],
+              %{user_id: id},
+              fn ->
+                result = send_digest_email(id)
+                {result, %{}}
+              end
+            )
+          end
+          """
+        ]
       ]
     ]
 

@@ -14,27 +14,29 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
       `start_async/3` in LiveView.
       """,
       examples: [
-        wrong: """
-        # Blocks the GenServer mailbox for the duration of the HTTP call
-        def handle_call(:refresh, _from, state) do
-          data = HTTPoison.get!("https://api.example.com/data").body
-          {:reply, data, %{state | data: data}}
-        end
-        """,
-        correct: """
-        # Offload the blocking work to a supervised task
-        def handle_call(:refresh, _from, state) do
-          Task.Supervisor.async_nolink(MyApp.TaskSup, fn ->
-            HTTPoison.get!("https://api.example.com/data").body
-          end)
-          {:reply, :refreshing, state}
-        end
+        elixir: [
+          wrong: """
+          # Blocks the GenServer mailbox for the duration of the HTTP call
+          def handle_call(:refresh, _from, state) do
+            data = HTTPoison.get!("https://api.example.com/data").body
+            {:reply, data, %{state | data: data}}
+          end
+          """,
+          correct: """
+          # Offload the blocking work to a supervised task
+          def handle_call(:refresh, _from, state) do
+            Task.Supervisor.async_nolink(MyApp.TaskSup, fn ->
+              HTTPoison.get!("https://api.example.com/data").body
+            end)
+            {:reply, :refreshing, state}
+          end
 
-        def handle_info({ref, data}, state) when is_reference(ref) do
-          Process.demonitor(ref, [:flush])
-          {:noreply, %{state | data: data}}
-        end
-        """
+          def handle_info({ref, data}, state) when is_reference(ref) do
+            Process.demonitor(ref, [:flush])
+            {:noreply, %{state | data: data}}
+          end
+          """
+        ]
       ]
     ]
 

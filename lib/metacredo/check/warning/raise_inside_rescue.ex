@@ -11,22 +11,24 @@ defmodule MetaCredo.Check.Warning.RaiseInsideRescue do
       Use `reraise(exception, __STACKTRACE__)` to preserve the original trace.
       """,
       examples: [
-        wrong: """
-        # `raise ex` creates a NEW exception with a new stack trace
-        try do
-          risky_operation()
-        rescue
-          ex -> raise ex  # original call site is lost
-        end
-        """,
-        correct: """
-        # `reraise` preserves the original stack trace for debugging
-        try do
-          risky_operation()
-        rescue
-          ex -> reraise ex, __STACKTRACE__
-        end
-        """
+        elixir: [
+          wrong: """
+          # `raise ex` creates a NEW exception with a new stack trace
+          try do
+            risky_operation()
+          rescue
+            ex -> raise ex  # original call site is lost
+          end
+          """,
+          correct: """
+          # `reraise` preserves the original stack trace for debugging
+          try do
+            risky_operation()
+          rescue
+            ex -> reraise ex, __STACKTRACE__
+          end
+          """
+        ]
       ]
     ]
 

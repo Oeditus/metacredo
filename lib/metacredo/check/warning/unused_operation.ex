@@ -10,21 +10,23 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
       indicates a missing assignment or accidental side-effect-only call.
       """,
       examples: [
-        wrong: """
-        # The uppercased string is computed and immediately discarded
-        def normalize(name) do
-          String.upcase(name)  # result thrown away!
-          String.trim(name)
-        end
-        """,
-        correct: """
-        # Assign or pipe the result so it is actually used
-        def normalize(name) do
-          name
-          |> String.upcase()
-          |> String.trim()
-        end
-        """
+        elixir: [
+          wrong: """
+          # The uppercased string is computed and immediately discarded
+          def normalize(name) do
+            String.upcase(name)  # result thrown away!
+            String.trim(name)
+          end
+          """,
+          correct: """
+          # Assign or pipe the result so it is actually used
+          def normalize(name) do
+            name
+            |> String.upcase()
+            |> String.trim()
+          end
+          """
+        ]
       ]
     ]
 

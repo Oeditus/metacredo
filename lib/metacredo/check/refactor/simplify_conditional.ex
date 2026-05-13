@@ -13,26 +13,28 @@ defmodule MetaCredo.Check.Refactor.SimplifyConditional do
       - `if condition do condition else false end` -> `condition`
       """,
       examples: [
-        wrong: """
-        # Wrapping a boolean expression in an if/else is redundant
-        def active?(user) do
-          if user.confirmed_at != nil do
-            true
-          else
-            false
+        elixir: [
+          wrong: """
+          # Wrapping a boolean expression in an if/else is redundant
+          def active?(user) do
+            if user.confirmed_at != nil do
+              true
+            else
+              false
+            end
           end
-        end
-        """,
-        correct: """
-        # The condition IS the return value
-        def active?(user) do
-          user.confirmed_at != nil
-        end
+          """,
+          correct: """
+          # The condition IS the return value
+          def active?(user) do
+            user.confirmed_at != nil
+          end
 
-        # Or with negation:
-        # if cond do false else true end  ->  not cond
-        def inactive?(user), do: not active?(user)
-        """
+          # Or with negation:
+          # if cond do false else true end  ->  not cond
+          def inactive?(user), do: not active?(user)
+          """
+        ]
       ]
     ]
 

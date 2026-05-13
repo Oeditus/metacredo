@@ -12,25 +12,27 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
       """,
       params: [],
       examples: [
-        wrong: """
-        # User input flows directly into a sensitive operation
-        def search(query) do
-          Repo.query!("SELECT * FROM items WHERE name = '\#{query}'")
-        end
-        """,
-        correct: """
-        # Validate and cast input through a changeset before use
-        def search(params) do
-          changeset = SearchForm.changeset(%SearchForm{}, params)
-
-          if changeset.valid? do
-            %{query: query} = Ecto.Changeset.apply_changes(changeset)
-            Items.search(query)
-          else
-            {:error, changeset}
+        elixir: [
+          wrong: """
+          # User input flows directly into a sensitive operation
+          def search(query) do
+            Repo.query!("SELECT * FROM items WHERE name = '\#{query}'")
           end
-        end
-        """
+          """,
+          correct: """
+          # Validate and cast input through a changeset before use
+          def search(params) do
+            changeset = SearchForm.changeset(%SearchForm{}, params)
+
+            if changeset.valid? do
+              %{query: query} = Ecto.Changeset.apply_changes(changeset)
+              Items.search(query)
+            else
+              {:error, changeset}
+            end
+          end
+          """
+        ]
       ]
     ]
 

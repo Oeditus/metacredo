@@ -13,39 +13,41 @@ defmodule MetaCredo.Check.Readability.DeepNesting do
         max_nesting: "Maximum allowed nesting depth (default: 4)"
       ],
       examples: [
-        wrong: """
-        def handle(conn, params) do
-          if authenticated?(conn) do
-            case fetch_resource(params) do
-              {:ok, resource} ->
-                if authorized?(conn, resource) do
-                  case validate(resource) do
-                    :ok -> render(conn, resource)
-                    {:error, reason} -> error(conn, reason)
+        elixir: [
+          wrong: """
+          def handle(conn, params) do
+            if authenticated?(conn) do
+              case fetch_resource(params) do
+                {:ok, resource} ->
+                  if authorized?(conn, resource) do
+                    case validate(resource) do
+                      :ok -> render(conn, resource)
+                      {:error, reason} -> error(conn, reason)
+                    end
+                  else
+                    forbidden(conn)
                   end
-                else
-                  forbidden(conn)
-                end
-              {:error, _} -> not_found(conn)
+                {:error, _} -> not_found(conn)
+              end
+            else
+              unauthorized(conn)
             end
-          else
-            unauthorized(conn)
           end
-        end
-        """,
-        correct: """
-        def handle(conn, params) do
-          with :ok <- check_auth(conn),
-               {:ok, resource} <- fetch_resource(params),
-               :ok <- check_authz(conn, resource),
-               :ok <- validate(resource) do
-            render(conn, resource)
+          """,
+          correct: """
+          def handle(conn, params) do
+            with :ok <- check_auth(conn),
+                 {:ok, resource} <- fetch_resource(params),
+                 :ok <- check_authz(conn, resource),
+                 :ok <- validate(resource) do
+              render(conn, resource)
+            end
           end
-        end
 
-        defp check_auth(conn), do: if authenticated?(conn), do: :ok, else: {:error, :unauthorized}
-        defp check_authz(conn, res), do: if authorized?(conn, res), do: :ok, else: {:error, :forbidden}
-        """
+          defp check_auth(conn), do: if authenticated?(conn), do: :ok, else: {:error, :unauthorized}
+          defp check_authz(conn, res), do: if authorized?(conn, res), do: :ok, else: {:error, :forbidden}
+          """
+        ]
       ]
     ]
 

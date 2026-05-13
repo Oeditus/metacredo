@@ -12,18 +12,20 @@ defmodule MetaCredo.Check.Design.TagFixme do
         include_source_scan: "Also scan raw source lines for FIXME (default: true)"
       ],
       examples: [
-        wrong: """
-        def calculate(a, b) do
-          # FIXME: division by zero not handled
-          a / b
-        end
-        """,
-        correct: """
-        # Either fix the issue inline or remove the comment and
-        # open a ticket in your issue tracker with reproduction steps.
-        def calculate(_a, 0), do: {:error, :division_by_zero}
-        def calculate(a, b), do: {:ok, a / b}
-        """
+        elixir: [
+          wrong: """
+          def calculate(a, b) do
+            # FIXME: division by zero not handled
+            a / b
+          end
+          """,
+          correct: """
+          # Either fix the issue inline or remove the comment and
+          # open a ticket in your issue tracker with reproduction steps.
+          def calculate(_a, 0), do: {:error, :division_by_zero}
+          def calculate(a, b), do: {:ok, a / b}
+          """
+        ]
       ]
     ]
 

@@ -11,18 +11,20 @@ defmodule MetaCredo.Check.Warning.MissingErrorHandling do
       Use `case`, `with`, or multi-clause function heads instead.
       """,
       examples: [
-        wrong: """
-        # Crashes the process if Repo returns {:error, ...}
-        {:ok, user} = Repo.insert(changeset)
-        send_welcome_email(user)
-        """,
-        correct: """
-        # Handle both outcomes explicitly
-        case Repo.insert(changeset) do
-          {:ok, user} -> send_welcome_email(user)
-          {:error, changeset} -> {:error, changeset}
-        end
-        """
+        elixir: [
+          wrong: """
+          # Crashes the process if Repo returns {:error, ...}
+          {:ok, user} = Repo.insert(changeset)
+          send_welcome_email(user)
+          """,
+          correct: """
+          # Handle both outcomes explicitly
+          case Repo.insert(changeset) do
+            {:ok, user} -> send_welcome_email(user)
+            {:error, changeset} -> {:error, changeset}
+          end
+          """
+        ]
       ]
     ]
 

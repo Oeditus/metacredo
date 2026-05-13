@@ -12,18 +12,20 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
         max_nesting: "Maximum allowed nesting depth of function calls (default: 2)"
       ],
       examples: [
-        wrong: """
-        # Triple nesting -- must read inside-out to understand data flow
-        result = Enum.join(Enum.map(String.split(input, ","), &String.trim/1), " | ")
-        """,
-        correct: """
-        # Use pipes or intermediate variables to make the flow linear
-        result =
-          input
-          |> String.split(",")
-          |> Enum.map(&String.trim/1)
-          |> Enum.join(" | ")
-        """
+        elixir: [
+          wrong: """
+          # Triple nesting -- must read inside-out to understand data flow
+          result = Enum.join(Enum.map(String.split(input, ","), &String.trim/1), " | ")
+          """,
+          correct: """
+          # Use pipes or intermediate variables to make the flow linear
+          result =
+            input
+            |> String.split(",")
+            |> Enum.map(&String.trim/1)
+            |> Enum.join(" | ")
+          """
+        ]
       ]
     ]
 

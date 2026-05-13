@@ -9,17 +9,19 @@ defmodule MetaCredo.Check.Warning.OperationWithConstantResult do
       These suggest dead code or incomplete expressions.
       """,
       examples: [
-        wrong: """
-        # Multiplying by 0 always gives 0 -- the variable is never used
-        total = quantity * 0
-        # Adding 0 is a no-op -- likely a placeholder never replaced
-        adjusted = price + 0
-        """,
-        correct: """
-        # Replace the constant with the actual intended operand
-        total = quantity * unit_price
-        adjusted = price + discount
-        """
+        elixir: [
+          wrong: """
+          # Multiplying by 0 always gives 0 -- the variable is never used
+          total = quantity * 0
+          # Adding 0 is a no-op -- likely a placeholder never replaced
+          adjusted = price + 0
+          """,
+          correct: """
+          # Replace the constant with the actual intended operand
+          total = quantity * unit_price
+          adjusted = price + discount
+          """
+        ]
       ]
     ]
 

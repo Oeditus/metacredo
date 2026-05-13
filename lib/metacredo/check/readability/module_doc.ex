@@ -8,34 +8,36 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
       a `@moduledoc` describing its purpose.
       """,
       examples: [
-        wrong: """
-        # No documentation -- purpose is unknown to new readers
-        defmodule MyApp.Accounts.UserToken do
-          use Ecto.Schema
-          import Ecto.Changeset
+        elixir: [
+          wrong: """
+          # No documentation -- purpose is unknown to new readers
+          defmodule MyApp.Accounts.UserToken do
+            use Ecto.Schema
+            import Ecto.Changeset
 
-          schema "user_tokens" do
-            ...
+            schema "user_tokens" do
+              ...
+            end
           end
-        end
-        """,
-        correct: """
-        defmodule MyApp.Accounts.UserToken do
-          @moduledoc \"\"\"
-          Manages authentication tokens for users.
+          """,
+          correct: """
+          defmodule MyApp.Accounts.UserToken do
+            @moduledoc \"\"\"
+            Manages authentication tokens for users.
 
-          Tokens are single-use, time-limited, and scoped to a specific
-          context (e.g. password reset or email confirmation).
-          \"\"\"
+            Tokens are single-use, time-limited, and scoped to a specific
+            context (e.g. password reset or email confirmation).
+            \"\"\"
 
-          use Ecto.Schema
-          import Ecto.Changeset
+            use Ecto.Schema
+            import Ecto.Changeset
 
-          schema "user_tokens" do
-            ...
+            schema "user_tokens" do
+              ...
+            end
           end
-        end
-        """
+          """
+        ]
       ]
     ]
 

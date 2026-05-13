@@ -9,20 +9,22 @@ defmodule MetaCredo.Check.Warning.DebugLeftover do
       These should be removed before merging to production.
       """,
       examples: [
-        wrong: """
-        def process(order) do
-          IO.inspect(order, label: "order")  # left over from debugging
-          total = calculate_total(order)
-          dbg(total)
-          persist(total)
-        end
-        """,
-        correct: """
-        def process(order) do
-          total = calculate_total(order)
-          persist(total)
-        end
-        """
+        elixir: [
+          wrong: """
+          def process(order) do
+            IO.inspect(order, label: "order")  # left over from debugging
+            total = calculate_total(order)
+            dbg(total)
+            persist(total)
+          end
+          """,
+          correct: """
+          def process(order) do
+            total = calculate_total(order)
+            persist(total)
+          end
+          """
+        ]
       ]
     ]
 

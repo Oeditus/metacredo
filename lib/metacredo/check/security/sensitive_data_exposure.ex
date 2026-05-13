@@ -11,16 +11,18 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
       """,
       params: [],
       examples: [
-        wrong: """
-        # Logs a password in plaintext -- visible to anyone with log access
-        Logger.info("User login attempt: \#{user.email}, password: \#{user.password}")
-        IO.inspect(credentials, label: "credentials")
-        """,
-        correct: """
-        # Log only non-sensitive identifiers
-        Logger.info("User login attempt", user_id: user.id, email: user.email)
-        # Never log passwords, tokens, secrets, or PII in plaintext
-        """
+        elixir: [
+          wrong: """
+          # Logs a password in plaintext -- visible to anyone with log access
+          Logger.info("User login attempt: \#{user.email}, password: \#{user.password}")
+          IO.inspect(credentials, label: "credentials")
+          """,
+          correct: """
+          # Log only non-sensitive identifiers
+          Logger.info("User login attempt", user_id: user.id, email: user.email)
+          # Never log passwords, tokens, secrets, or PII in plaintext
+          """
+        ]
       ]
     ]
 

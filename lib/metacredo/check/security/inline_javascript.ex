@@ -13,18 +13,20 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
       """,
       params: [],
       examples: [
-        wrong: """
-        # Inline event handlers are an XSS vector and violate CSP
-        html = "<button onclick=\"doThing()\">Click</button>"
-        send_resp(conn, 200, html)
-        """,
-        correct: """
-        # Use Phoenix LiveView bindings -- no inline JS needed
-        # In a .heex template:
-        #   <button phx-click="do_thing">Click</button>
-        # External JS attaches behaviour via event listeners on data attributes,
-        # keeping markup CSP-safe and event handlers out of the HTML string.
-        """
+        elixir: [
+          wrong: """
+          # Inline event handlers are an XSS vector and violate CSP
+          html = "<button onclick=\"doThing()\">Click</button>"
+          send_resp(conn, 200, html)
+          """,
+          correct: """
+          # Use Phoenix LiveView bindings -- no inline JS needed
+          # In a .heex template:
+          #   <button phx-click="do_thing">Click</button>
+          # External JS attaches behaviour via event listeners on data attributes,
+          # keeping markup CSP-safe and event handlers out of the HTML string.
+          """
+        ]
       ]
     ]
 

@@ -13,20 +13,22 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
       middleware pattern.
       """,
       examples: [
-        wrong: """
-        # Every request blocks waiting for a remote feature flag check
-        def call(conn, _opts) do
-          flags = HTTPoison.get!("https://flags.example.com/api").body
-          assign(conn, :flags, flags)
-        end
-        """,
-        correct: """
-        # Cache flags at startup or refresh periodically in a GenServer
-        def call(conn, _opts) do
-          flags = FeatureFlags.get_all()  # reads from ETS or local cache
-          assign(conn, :flags, flags)
-        end
-        """
+        elixir: [
+          wrong: """
+          # Every request blocks waiting for a remote feature flag check
+          def call(conn, _opts) do
+            flags = HTTPoison.get!("https://flags.example.com/api").body
+            assign(conn, :flags, flags)
+          end
+          """,
+          correct: """
+          # Cache flags at startup or refresh periodically in a GenServer
+          def call(conn, _opts) do
+            flags = FeatureFlags.get_all()  # reads from ETS or local cache
+            assign(conn, :flags, flags)
+          end
+          """
+        ]
       ]
     ]
 

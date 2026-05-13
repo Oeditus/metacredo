@@ -9,18 +9,20 @@ defmodule MetaCredo.Check.Readability.Specs do
       function contracts explicit.
       """,
       examples: [
-        wrong: """
-        # No spec -- callers can't tell what types are accepted or returned
-        def calculate_discount(price, rate) do
-          price * (1 - rate)
-        end
-        """,
-        correct: """
-        @spec calculate_discount(number(), float()) :: float()
-        def calculate_discount(price, rate) do
-          price * (1 - rate)
-        end
-        """
+        elixir: [
+          wrong: """
+          # No spec -- callers can't tell what types are accepted or returned
+          def calculate_discount(price, rate) do
+            price * (1 - rate)
+          end
+          """,
+          correct: """
+          @spec calculate_discount(number(), float()) :: float()
+          def calculate_discount(price, rate) do
+            price * (1 - rate)
+          end
+          """
+        ]
       ]
     ]
 

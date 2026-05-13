@@ -8,22 +8,24 @@ defmodule MetaCredo.Check.Refactor.NegatedConditionWithElse do
       Swap the branches and remove the negation for clearer code.
       """,
       examples: [
-        wrong: """
-        # Negation with else forces the reader to mentally invert the condition
-        if !valid?(input) do
-          {:error, :invalid}
-        else
-          process(input)
-        end
-        """,
-        correct: """
-        # Swap branches to eliminate the negation
-        if valid?(input) do
-          process(input)
-        else
-          {:error, :invalid}
-        end
-        """
+        elixir: [
+          wrong: """
+          # Negation with else forces the reader to mentally invert the condition
+          if !valid?(input) do
+            {:error, :invalid}
+          else
+            process(input)
+          end
+          """,
+          correct: """
+          # Swap branches to eliminate the negation
+          if valid?(input) do
+            process(input)
+          else
+            {:error, :invalid}
+          end
+          """
+        ]
       ]
     ]
 

@@ -8,16 +8,18 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
       Module names in Elixir should use PascalCase (e.g. `MyApp.UserAccount`).
       """,
       examples: [
-        wrong: """
-        # snake_case and all-caps names are not idiomatic
-        defmodule my_app.user_account, do: ...
-        defmodule MYAPP.USERREPO, do: ...
-        """,
-        correct: """
-        # PascalCase for every segment separated by dots
-        defmodule MyApp.UserAccount, do: ...
-        defmodule MyApp.Repo, do: ...
-        """
+        elixir: [
+          wrong: """
+          # snake_case and all-caps names are not idiomatic
+          defmodule my_app.user_account, do: ...
+          defmodule MYAPP.USERREPO, do: ...
+          """,
+          correct: """
+          # PascalCase for every segment separated by dots
+          defmodule MyApp.UserAccount, do: ...
+          defmodule MyApp.Repo, do: ...
+          """
+        ]
       ]
     ]
 

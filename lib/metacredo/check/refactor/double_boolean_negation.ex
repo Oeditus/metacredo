@@ -9,16 +9,18 @@ defmodule MetaCredo.Check.Refactor.DoubleBooleanNegation do
       conversion or pattern matching instead.
       """,
       examples: [
-        wrong: """
-        # `!!` coerces to bool but the intent is opaque
-        active? = !!user.confirmed_at
-        has_posts? = !!Enum.count(posts)
-        """,
-        correct: """
-        # Express the boolean intent explicitly
-        active? = not is_nil(user.confirmed_at)
-        has_posts? = Enum.any?(posts)
-        """
+        elixir: [
+          wrong: """
+          # `!!` coerces to bool but the intent is opaque
+          active? = !!user.confirmed_at
+          has_posts? = !!Enum.count(posts)
+          """,
+          correct: """
+          # Express the boolean intent explicitly
+          active? = not is_nil(user.confirmed_at)
+          has_posts? = Enum.any?(posts)
+          """
+        ]
       ]
     ]
 

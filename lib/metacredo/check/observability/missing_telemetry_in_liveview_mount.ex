@@ -17,23 +17,25 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInLiveviewMount do
         telemetry_indicators: "Function name fragments indicating telemetry calls"
       ],
       examples: [
-        wrong: """
-        # Mount latency is invisible to dashboards and alerting
-        def mount(_params, _session, socket) do
-          {:ok, assign(socket, :users, Repo.all(User))}
-        end
-        """,
-        correct: """
-        # Emit telemetry so LiveView render time shows up in metrics
-        def mount(_params, _session, socket) do
-          :telemetry.execute(
-            [:my_app, :live_view, :mount],
-            %{system_time: System.system_time()},
-            %{view: __MODULE__}
-          )
-          {:ok, assign(socket, :users, Repo.all(User))}
-        end
-        """
+        elixir: [
+          wrong: """
+          # Mount latency is invisible to dashboards and alerting
+          def mount(_params, _session, socket) do
+            {:ok, assign(socket, :users, Repo.all(User))}
+          end
+          """,
+          correct: """
+          # Emit telemetry so LiveView render time shows up in metrics
+          def mount(_params, _session, socket) do
+            :telemetry.execute(
+              [:my_app, :live_view, :mount],
+              %{system_time: System.system_time()},
+              %{view: __MODULE__}
+            )
+            {:ok, assign(socket, :users, Repo.all(User))}
+          end
+          """
+        ]
       ]
     ]
 

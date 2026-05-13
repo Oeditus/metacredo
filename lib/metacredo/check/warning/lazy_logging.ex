@@ -11,14 +11,16 @@ defmodule MetaCredo.Check.Warning.LazyLogging do
       Use `Logger.info(fn -> "msg: \#{val}" end)` instead.
       """,
       examples: [
-        wrong: """
-        # String is always built, even if :debug level is disabled in production
-        Logger.debug("Processing order \#{order.id} for user \#{user.email}")
-        """,
-        correct: """
-        # Lazy evaluation: string is only built when the level is active
-        Logger.debug(fn -> "Processing order \#{order.id} for user \#{user.email}" end)
-        """
+        elixir: [
+          wrong: """
+          # String is always built, even if :debug level is disabled in production
+          Logger.debug("Processing order \#{order.id} for user \#{user.email}")
+          """,
+          correct: """
+          # Lazy evaluation: string is only built when the level is active
+          Logger.debug(fn -> "Processing order \#{order.id} for user \#{user.email}" end)
+          """
+        ]
       ]
     ]
 

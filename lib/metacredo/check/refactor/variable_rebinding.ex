@@ -9,21 +9,23 @@ defmodule MetaCredo.Check.Refactor.VariableRebinding do
       use distinct names or restructure the code.
       """,
       examples: [
-        wrong: """
-        # What does `result` mean at each point? The reader must trace all assignments.
-        result = fetch_data(id)
-        result = transform(result)
-        result = validate(result)
-        persist(result)
-        """,
-        correct: """
-        # Use pipes to express the transformation pipeline, or distinct names
-        id
-        |> fetch_data()
-        |> transform()
-        |> validate()
-        |> persist()
-        """
+        elixir: [
+          wrong: """
+          # What does `result` mean at each point? The reader must trace all assignments.
+          result = fetch_data(id)
+          result = transform(result)
+          result = validate(result)
+          persist(result)
+          """,
+          correct: """
+          # Use pipes to express the transformation pipeline, or distinct names
+          id
+          |> fetch_data()
+          |> transform()
+          |> validate()
+          |> persist()
+          """
+        ]
       ]
     ]
 

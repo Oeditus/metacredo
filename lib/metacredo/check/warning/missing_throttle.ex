@@ -13,25 +13,27 @@ defmodule MetaCredo.Check.Warning.MissingThrottle do
       `PlugAttack`, `ExRated`).
       """,
       examples: [
-        wrong: """
-        # POST /search -- no rate limiting, any client can hammer this
-        def search(conn, %{"q" => q}) do
-          results = FullTextSearch.query(q)
-          json(conn, results)
-        end
-        """,
-        correct: """
-        # Add a rate-limiting plug before the action
-        plug PlugAttack
+        elixir: [
+          wrong: """
+          # POST /search -- no rate limiting, any client can hammer this
+          def search(conn, %{"q" => q}) do
+            results = FullTextSearch.query(q)
+            json(conn, results)
+          end
+          """,
+          correct: """
+          # Add a rate-limiting plug before the action
+          plug PlugAttack
 
-        def search(conn, %{"q" => q}) do
-          results = FullTextSearch.query(q)
-          json(conn, results)
-        end
+          def search(conn, %{"q" => q}) do
+            results = FullTextSearch.query(q)
+            json(conn, results)
+          end
 
-        # Or for LiveView inputs, add phx-debounce:
-        # <input phx-change="search" phx-debounce="300" />
-        """
+          # Or for LiveView inputs, add phx-debounce:
+          # <input phx-change="search" phx-debounce="300" />
+          """
+        ]
       ]
     ]
 

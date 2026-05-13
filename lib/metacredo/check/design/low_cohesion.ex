@@ -18,30 +18,32 @@ defmodule MetaCredo.Check.Design.LowCohesion do
         max_disjoint_groups: "Maximum allowed disjoint function groups (default: 2)"
       ],
       examples: [
-        wrong: """
-        # Three completely unrelated responsibilities in one module
-        defmodule Utils do
-          def format_date(date), do: ...
-          def parse_date(str), do: ...
-          def charge_card(amount, token), do: ...
-          def send_welcome_email(user), do: ...
-        end
-        """,
-        correct: """
-        # Each module has a single focused responsibility
-        defmodule DateFormatter do
-          def format(date), do: ...
-          def parse(str), do: ...
-        end
+        elixir: [
+          wrong: """
+          # Three completely unrelated responsibilities in one module
+          defmodule Utils do
+            def format_date(date), do: ...
+            def parse_date(str), do: ...
+            def charge_card(amount, token), do: ...
+            def send_welcome_email(user), do: ...
+          end
+          """,
+          correct: """
+          # Each module has a single focused responsibility
+          defmodule DateFormatter do
+            def format(date), do: ...
+            def parse(str), do: ...
+          end
 
-        defmodule Billing do
-          def charge(amount, token), do: ...
-        end
+          defmodule Billing do
+            def charge(amount, token), do: ...
+          end
 
-        defmodule Mailer do
-          def send_welcome(user), do: ...
-        end
-        """
+          defmodule Mailer do
+            def send_welcome(user), do: ...
+          end
+          """
+        ]
       ]
     ]
 

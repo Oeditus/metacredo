@@ -8,20 +8,22 @@ defmodule MetaCredo.Check.Refactor.DeadCode do
       a `return`, `raise`, or `throw` can never execute and should be removed.
       """,
       examples: [
-        wrong: """
-        # Everything after `raise` is unreachable
-        def fetch!(id) do
-          raise "not found"
-          Repo.get!(User, id)  # unreachable
-          Logger.info("fetched")  # unreachable
-        end
-        """,
-        correct: """
-        # Remove the dead statements
-        def fetch!(id) do
-          raise "not found"
-        end
-        """
+        elixir: [
+          wrong: """
+          # Everything after `raise` is unreachable
+          def fetch!(id) do
+            raise "not found"
+            Repo.get!(User, id)  # unreachable
+            Logger.info("fetched")  # unreachable
+          end
+          """,
+          correct: """
+          # Remove the dead statements
+          def fetch!(id) do
+            raise "not found"
+          end
+          """
+        ]
       ]
     ]
 

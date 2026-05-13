@@ -18,29 +18,31 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInAuthPlug do
         telemetry_indicators: "Function name fragments indicating telemetry/audit calls"
       ],
       examples: [
-        wrong: """
-        # Auth outcome is silent -- no audit trail for security review
-        def authenticate(conn, _opts) do
-          case Guardian.Plug.current_resource(conn) do
-            nil -> conn |> send_resp(401, "Unauthorized") |> halt()
-            user -> assign(conn, :current_user, user)
+        elixir: [
+          wrong: """
+          # Auth outcome is silent -- no audit trail for security review
+          def authenticate(conn, _opts) do
+            case Guardian.Plug.current_resource(conn) do
+              nil -> conn |> send_resp(401, "Unauthorized") |> halt()
+              user -> assign(conn, :current_user, user)
+            end
           end
-        end
-        """,
-        correct: """
-        # Emit telemetry so security tooling can track auth events
-        def authenticate(conn, _opts) do
-          case Guardian.Plug.current_resource(conn) do
-            nil ->
-              :telemetry.execute([:my_app, :auth, :failed], %{count: 1}, %{path: conn.request_path})
-              conn |> send_resp(401, "Unauthorized") |> halt()
+          """,
+          correct: """
+          # Emit telemetry so security tooling can track auth events
+          def authenticate(conn, _opts) do
+            case Guardian.Plug.current_resource(conn) do
+              nil ->
+                :telemetry.execute([:my_app, :auth, :failed], %{count: 1}, %{path: conn.request_path})
+                conn |> send_resp(401, "Unauthorized") |> halt()
 
-            user ->
-              :telemetry.execute([:my_app, :auth, :succeeded], %{count: 1}, %{user_id: user.id})
-              assign(conn, :current_user, user)
+              user ->
+                :telemetry.execute([:my_app, :auth, :succeeded], %{count: 1}, %{user_id: user.id})
+                assign(conn, :current_user, user)
+            end
           end
-        end
-        """
+          """
+        ]
       ]
     ]
 

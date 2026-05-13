@@ -74,16 +74,16 @@ defmodule Mix.Tasks.Metacredo do
   end
 
   defp run_explain(check_ref) do
-    {module, issue} = resolve_check_with_context(check_ref)
+    {module, issue, language} = resolve_check_with_context(check_ref)
 
     if module && Code.ensure_loaded?(module) && function_exported?(module, :category, 0) do
-      Output.print_explanation(module, issue)
+      Output.print_explanation(module, issue, language)
     else
       Mix.shell().error("Check '#{check_ref}' not found.")
     end
   end
 
-  # Resolves a check reference and returns {module, issue | nil}.
+  # Resolves a check reference and returns {module, issue | nil, language}.
   #
   # Supported forms:
   #   file:line  e.g. lib/metacredo/cli/output.ex:42
@@ -97,29 +97,27 @@ defmodule Mix.Tasks.Metacredo do
     cond do
       file_ref?(ref) ->
         {path, line_no} = split_file_ref(ref)
+        language = Sources.language_for(path) || detect_project_language()
 
         issue =
           if line_no && File.exists?(path), do: check_at_location(path, line_no)
 
         module = (issue && issue.check) || path_to_check_module(path)
-        {module, issue}
+        {module, issue, language}
 
       String.contains?(ref, ".") ->
-        module =
-          try do
-            ref |> String.split(".") |> Module.concat()
-          rescue
-            _ -> nil
-          end
-
-        {module, nil}
+        module = ref |> String.split(".") |> Module.concat()
+        {module, nil, detect_project_language()}
 
       true ->
-        {find_check_by_short_name(ref), nil}
+        {find_check_by_short_name(ref), nil, detect_project_language()}
     end
   end
 
-  defp file_ref?(str), do: Regex.match?(~r/\.exs?(:\d+)?$/, str)
+  defp file_ref?(str) do
+    exts = Sources.supported_extensions() |> Enum.map_join("|", &Regex.escape/1)
+    Regex.match?(~r/(?:#{exts})(:\d+)?$/, str)
+  end
 
   defp split_file_ref(str) do
     case String.split(str, ":") do
@@ -159,10 +157,9 @@ defmodule Mix.Tasks.Metacredo do
     expected =
       relative
       |> String.split("/")
-      |> Enum.map(fn part ->
-        part |> String.split("_") |> Enum.map(&String.capitalize/1) |> Enum.join()
+      |> Enum.map_join(".", fn part ->
+        part |> String.split("_") |> Enum.map_join("", &String.capitalize/1)
       end)
-      |> Enum.join(".")
       |> String.downcase()
 
     metacredo_check_modules()
@@ -197,6 +194,45 @@ defmodule Mix.Tasks.Metacredo do
       end)
     else
       []
+    end
+  end
+
+  # Detects the primary programming language used in the current project.
+  # Checks for well-known project descriptor files first, then falls back to
+  # scanning source directories and returning the most prevalent language.
+  defp detect_project_language do
+    cond do
+      File.exists?("mix.exs") ->
+        :elixir
+
+      File.exists?("rebar.config") or File.exists?("rebar.lock") ->
+        :erlang
+
+      true ->
+        detect_language_from_sources()
+    end
+  end
+
+  defp detect_language_from_sources do
+    config = Config.default()
+
+    counts =
+      config.files.included
+      |> Enum.flat_map(fn path ->
+        if File.dir?(path) do
+          Sources.supported_extensions()
+          |> Enum.flat_map(&Path.wildcard("#{path}/**/*#{&1}"))
+        else
+          [path]
+        end
+      end)
+      |> Enum.map(&Sources.language_for/1)
+      |> Enum.reject(&is_nil/1)
+      |> Enum.frequencies()
+
+    case Enum.max_by(counts, fn {_lang, count} -> count end, fn -> nil end) do
+      {lang, _} -> lang
+      nil -> :elixir
     end
   end
 
