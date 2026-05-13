@@ -13,13 +13,13 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
       params: []
     ]
 
-  @user_input_sources ~w[
+  @user_input_sources ~W[
     params request args query body
     input form data payload
     get post put patch
   ]
 
-  @validation_functions ~w[
+  @validation_functions ~W[
     validate valid? changeset cast
     schema validate_required validate_format
     validate_length validate_inclusion
@@ -29,7 +29,7 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
     Joi Yup zod
   ]
 
-  @sensitive_operations ~w[
+  @sensitive_operations ~W[
     query execute run eval
     send call request
     write save insert update delete

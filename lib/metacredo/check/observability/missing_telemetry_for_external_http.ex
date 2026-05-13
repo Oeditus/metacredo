@@ -3,8 +3,8 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryForExternalHttp do
     category: :observability,
     base_priority: :normal,
     param_defaults: [
-      http_indicators: ~w[http fetch request get post put patch delete],
-      telemetry_indicators: ~w[telemetry emit log trace metric record measure span]
+      http_indicators: ~W[http fetch request get post put patch delete],
+      telemetry_indicators: ~W[telemetry emit log trace metric record measure span]
     ],
     explanations: [
       check: """

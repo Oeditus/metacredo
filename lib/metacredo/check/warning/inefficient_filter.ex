@@ -108,6 +108,4 @@ defmodule MetaCredo.Check.Warning.InefficientFilter do
     Enum.any?(@fetch_all_indicators, &String.contains?(lower, &1)) or
       String.contains?(lower, "repo.")
   end
-
-  defp fetch_all_function?(_), do: false
 end

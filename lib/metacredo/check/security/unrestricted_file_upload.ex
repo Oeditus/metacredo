@@ -13,7 +13,7 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
       params: []
     ]
 
-  @file_save_functions ~w[
+  @file_save_functions ~W[
     write write! copy copy! stream!
     save save! store store!
     File.write File.copy File.stream
@@ -23,7 +23,7 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
     move rename
   ]
 
-  @validation_indicators ~w[
+  @validation_indicators ~W[
     extname extension content_type mime_type
     file_type allowed_types valid_extension
     file_size size max_size limit
@@ -31,7 +31,7 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
     allowed? valid? acceptable?
   ]
 
-  @upload_patterns ~w[
+  @upload_patterns ~W[
     upload uploaded file attachment
     multipart form_data formdata
     plug_upload phoenix_upload

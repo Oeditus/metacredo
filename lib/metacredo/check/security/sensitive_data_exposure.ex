@@ -12,7 +12,7 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
       params: []
     ]
 
-  @logging_functions ~w[
+  @logging_functions ~W[
     log info debug warn error warning notice
     Logger.info Logger.debug Logger.warn Logger.error
     IO.puts IO.inspect IO.write
@@ -23,7 +23,7 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
     logger.info logger.debug logger.warn logger.error
   ]
 
-  @sensitive_field_patterns ~w[
+  @sensitive_field_patterns ~W[
     password passwd pwd secret token api_key
     apikey access_token refresh_token auth
     credential private_key secret_key
@@ -33,7 +33,7 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
     password_hash encrypted_password
   ]
 
-  @sensitive_object_patterns ~w[
+  @sensitive_object_patterns ~W[
     user account credentials session
     auth authentication authorization
     payment billing card customer

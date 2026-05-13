@@ -40,7 +40,7 @@ defmodule MetaCredo.Execution do
   - `:files_included` - Override file include patterns
   - `:files_excluded` - Override file exclude patterns
   """
-  @spec run(run_opts()) :: {:ok, report()}
+  @spec run(run_opts()) :: report()
   def run(opts \\ []) do
     start = System.monotonic_time(:millisecond)
 
@@ -67,14 +67,13 @@ defmodule MetaCredo.Execution do
 
     elapsed = System.monotonic_time(:millisecond) - start
 
-    {:ok,
-     %{
-       source_files: source_files,
-       issues: issues,
-       checks_run: Enum.map(checks, &elem(&1, 0)),
-       summary: summarize(issues),
-       timing_ms: elapsed
-     }}
+    %{
+      source_files: source_files,
+      issues: issues,
+      checks_run: Enum.map(checks, &elem(&1, 0)),
+      summary: summarize(issues),
+      timing_ms: elapsed
+    }
   end
 
   @doc "Runs checks on pre-parsed source files."
@@ -128,6 +127,7 @@ defmodule MetaCredo.Execution do
     end)
   end
 
+  @dialyzer {:nowarn_function, filter_disabled_by_comments: 2}
   defp filter_disabled_by_comments(issues, source_files) do
     # Build a set of {filename, line_no, check_module} to suppress
     disabled = collect_disabled_lines(source_files)
@@ -139,6 +139,7 @@ defmodule MetaCredo.Execution do
     end)
   end
 
+  @spec collect_disabled_lines([SourceFile.t()]) :: MapSet.t()
   defp collect_disabled_lines(source_files) do
     source_files
     |> Enum.flat_map(fn sf ->

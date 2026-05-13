@@ -117,7 +117,7 @@ defmodule MetaCredo.Check.ReadabilityDesignTest do
 
   describe "Readability.LongParameterList" do
     test "detects function with too many params" do
-      params = ~w[a b c d e f g]
+      params = ~W[a b c d e f g]
       ast = function_def("many_args", params, [literal_int(1)], line: 10)
 
       issues = run_check(Readability.LongParameterList, ast: ast)
@@ -237,8 +237,12 @@ defmodule MetaCredo.Check.ReadabilityDesignTest do
               ["job"],
               [
                 call("do_work", [var("job")], line: 10)
-              ], line: 9)
-          ], line: 1)
+              ],
+              line: 9
+            )
+          ],
+          line: 1
+        )
 
       issues = run_check(Observability.MissingTelemetryInObanWorker, ast: ast)
       assert_issue(issues, message: ~r/telemetry|oban/i)
@@ -254,7 +258,9 @@ defmodule MetaCredo.Check.ReadabilityDesignTest do
           [
             call(":telemetry.execute", [literal_symbol(:event), var("m")], line: 5),
             call("process", [var("rest")], line: 6)
-          ], line: 4)
+          ],
+          line: 4
+        )
 
       issues = run_check(Observability.TelemetryInRecursiveFunction, ast: ast)
       assert_issue(issues, message: ~r/telemetry.*recurs/i)

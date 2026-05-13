@@ -12,9 +12,9 @@ defmodule MetaCredo.Check.Security.MissingCSRFProtection do
       params: []
     ]
 
-  @state_changing_methods ~w[post put patch delete]
+  @state_changing_methods ~W[post put patch delete]
 
-  @csrf_indicators ~w[
+  @csrf_indicators ~W[
     csrf token protect_from_forgery
     verify_authenticity_token antiforgery
     ValidateAntiForgeryToken csurf
@@ -22,7 +22,7 @@ defmodule MetaCredo.Check.Security.MissingCSRFProtection do
     x-csrf-token _csrf
   ]
 
-  @state_changing_actions ~w[
+  @state_changing_actions ~W[
     create update delete destroy
     save insert remove edit
     post put patch

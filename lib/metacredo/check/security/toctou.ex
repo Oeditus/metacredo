@@ -15,27 +15,27 @@ defmodule MetaCredo.Check.Security.TOCTOU do
     ]
 
   @check_functions %{
-    file_check: ~w[
+    file_check: ~W[
       exists? File.exists? file_exists? path.exists
       os.path.exists os.path.isfile os.path.isdir
       existsSync fs.existsSync File.exist?
       file.exists Path.exists File::exists
       access stat os.Stat fs.stat fs.statSync
     ],
-    permission_check: ~w[
+    permission_check: ~W[
       can_access? has_permission? is_authorized?
       check_permission check_access verify_access
       is_writable? is_readable? File.readable?
       File.writable? os.access
     ],
-    resource_check: ~w[
+    resource_check: ~W[
       is_available? resource_exists? connection_alive?
       is_connected? socket.connected? is_open? is_valid?
     ]
   }
 
   @use_functions %{
-    file_check: ~w[
+    file_check: ~W[
       read read! File.read File.read!
       File.write File.write! File.rm File.rm!
       File.open open readFile readFileSync
@@ -44,8 +44,8 @@ defmodule MetaCredo.Check.Security.TOCTOU do
       os.Open os.Remove unlink os.unlink
       delete File.delete
     ],
-    permission_check: ~w[execute perform do_action run invoke call apply],
-    resource_check: ~w[use consume send receive write read execute]
+    permission_check: ~W[execute perform do_action run invoke call apply],
+    resource_check: ~W[use consume send receive write read execute]
   }
 
   @impl true

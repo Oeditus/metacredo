@@ -13,7 +13,7 @@ defmodule MetaCredo.Check.Security.MissingAuthentication do
       params: []
     ]
 
-  @critical_action_names ~w[
+  @critical_action_names ~W[
     admin dashboard settings config configuration
     delete destroy remove purge
     update modify edit patch
@@ -24,7 +24,7 @@ defmodule MetaCredo.Check.Security.MissingAuthentication do
     user users account accounts
   ]
 
-  @authentication_indicators ~w[
+  @authentication_indicators ~W[
     authenticate authenticated? ensure_authenticated
     login logged_in? current_user
     require_login require_auth session

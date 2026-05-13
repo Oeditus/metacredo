@@ -28,8 +28,11 @@ defmodule MetaCredo.Config do
 
   @type config :: %{
           name: String.t(),
-          files: %{included: [String.t()], excluded: [String.t()]},
-          checks: %{enabled: [{module(), Keyword.t()}], disabled: [{module(), Keyword.t()}]}
+          files: %{included: [String.t()], excluded: [String.t() | Regex.t()]},
+          checks: %{
+            enabled: [{module(), Keyword.t()}] | :all,
+            disabled: [{module(), Keyword.t()}]
+          }
         }
 
   @default_config %{
@@ -95,6 +98,7 @@ defmodule MetaCredo.Config do
   end
 
   defp parse_file(path) do
+    # credo:disable-for-next-line
     case Code.eval_file(path) do
       {%{configs: [config | _]}, _binding} ->
         normalize_config(config)
@@ -121,15 +125,17 @@ defmodule MetaCredo.Config do
   end
 
   defp all_checks do
-    {:ok, modules} = :application.get_key(:metacredo, :modules)
+    case :application.get_key(:metacredo, :modules) do
+      {:ok, modules} ->
+        modules
+        |> Enum.filter(fn mod ->
+          module_name = to_string(mod)
+          String.starts_with?(module_name, "Elixir.MetaCredo.Check.") and check_module?(mod)
+        end)
 
-    modules
-    |> Enum.filter(fn mod ->
-      module_name = to_string(mod)
-      String.starts_with?(module_name, "Elixir.MetaCredo.Check.") and check_module?(mod)
-    end)
-  rescue
-    _ -> []
+      :undefined ->
+        []
+    end
   end
 
   defp check_module?(mod) do

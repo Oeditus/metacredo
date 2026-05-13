@@ -3,8 +3,8 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInLiveviewMount do
     category: :observability,
     base_priority: :normal,
     param_defaults: [
-      lifecycle_indicators: ~w[mount componentdidmount oninit oninitialize mounted created setup],
-      telemetry_indicators: ~w[telemetry emit log trace metric record measure]
+      lifecycle_indicators: ~W[mount componentdidmount oninit oninitialize mounted created setup],
+      telemetry_indicators: ~W[telemetry emit log trace metric record measure]
     ],
     explanations: [
       check: """

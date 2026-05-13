@@ -4,7 +4,7 @@ defmodule MetaCredo.Check.Observability.TelemetryInRecursiveFunction do
     base_priority: :high,
     param_defaults: [
       telemetry_indicators:
-        ~w[telemetry metric statsd emit record increment gauge timing histogram counter execute span observe]
+        ~W[telemetry metric statsd emit record increment gauge timing histogram counter execute span observe]
     ],
     explanations: [
       check: """

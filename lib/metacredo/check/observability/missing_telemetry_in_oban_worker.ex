@@ -3,8 +3,8 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInObanWorker do
     category: :observability,
     base_priority: :normal,
     param_defaults: [
-      job_indicators: ~w[perform execute process run worker job task handler],
-      telemetry_indicators: ~w[telemetry emit log trace metric record measure monitor]
+      job_indicators: ~W[perform execute process run worker job task handler],
+      telemetry_indicators: ~W[telemetry emit log trace metric record measure monitor]
     ],
     explanations: [
       check: """

@@ -13,7 +13,7 @@ defmodule MetaCredo.Check.Security.InsecureDirectObjectReference do
       params: []
     ]
 
-  @fetch_functions ~w[
+  @fetch_functions ~W[
     get get! get_by find find! find_by
     findById findByPk findOne first
     retrieve load fetch lookup
@@ -21,7 +21,7 @@ defmodule MetaCredo.Check.Security.InsecureDirectObjectReference do
     objects.get objects.filter
   ]
 
-  @ownership_indicators ~w[
+  @ownership_indicators ~W[
     user_id owner_id created_by author_id
     belongs_to current_user owner
     where user: filter user

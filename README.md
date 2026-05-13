@@ -68,7 +68,12 @@ Source files are parsed into a language-agnostic AST using Metastatic's adapters
 the uniform `{type, keyword_meta, children}` node structure. This means every
 check is cross-language by default.
 
-## Check Categories (45 checks)
+## Check Categories (72 checks)
+
+### Consistency `[C]`—2 checks
+
+- `ExceptionNames`—Exception/error classes not ending in "Error" or "Exception"
+- `ParameterPatternMatching`—Destructuring in body instead of params
 
 ### Security `[S]`—15 checks
 
@@ -88,7 +93,7 @@ check is cross-language by default.
 - `ImproperInputValidation`—User input to sensitive ops without validation (CWE-20)
 - `InlineJavascript`—Inline script tags, onclick handlers, javascript: URIs
 
-### Warning `[W]`—14 checks
+### Warning `[W]`—22 checks
 
 - `MissingErrorHandling`—`{:ok, _} = call()` without error handling
 - `SilentErrorCase`—case matching {:ok, _} without {:error, _} branch
@@ -104,26 +109,51 @@ check is cross-language by default.
 - `MissingThrottle`—Expensive operations without rate limiting
 - `InefficientFilter`—Repo.all then Enum.filter (filter in memory)
 - `ImperativeStatusHandling`—Imperative if/else chains on status codes
+- `UnusedOperation`—Function call result discarded (not assigned or returned)
+- `UnsafeExec`—System.cmd/exec with user-controlled arguments (CWE-78)
+- `BoolOperationOnSameValues`—`x && x`, `x || x` (always same result)
+- `OperationOnSameValues`—`x - x` (always 0), `x / x` (always 1)
+- `OperationWithConstantResult`—`x * 0` (always 0)
+- `LazyLogging`—Logger with string interpolation instead of anonymous function
+- `DebugLeftover`—IO.inspect, console.log, dbg() left in production code
+- `RaiseInsideRescue`—raise/throw inside rescue without re-raise semantics
 
-### Readability `[R]`—5 checks
+### Readability `[R]`—13 checks
 
 - `MagicNumber`—Numeric literals in expressions without named constants
 - `DeepNesting`—Functions with nesting depth exceeding threshold
 - `LongFunction`—Functions with too many statements
 - `ComplexConditional`—Deeply nested boolean operations
 - `LongParameterList`—Functions with too many parameters
+- `FunctionNames`—Function names not in snake_case
+- `ModuleNames`—Module/container names not in PascalCase
+- `VariableNames`—Variable names not in snake_case
+- `ModuleDoc`—Modules without documentation
+- `SinglePipe`—Single-step pipe chains (unnecessary `|>`)
+- `NestedFunctionCalls`—Deeply nested calls like `foo(bar(baz(x)))`
+- `Specs`—Public functions without type specifications
+- `LargeNumbers`—Large integers without underscore separators
 
-### Refactor `[F]`—3 checks
+### Refactor `[F]`—10 checks
 
 - `SimplifyConditional`—`if x do true else false end` patterns
 - `DeadCode`—Unreachable code after early returns
 - `CodeDuplication`—Duplicate function bodies (same AST structure)
+- `NegatedConditionWithElse`—`if !x do...else` (swap branches)
+- `DoubleBooleanNegation`—`!!x` pattern (simplify to boolean cast)
+- `AppendSingleItem`—`list ++ [item]` (use `[item | list]` or `List.insert_at`)
+- `PipeChainStart`—Pipe chains starting with a literal value
+- `FilterCount`—`Enum.filter |> Enum.count` (use `Enum.count/2`)
+- `UnlessWithElse`—`unless...else` (use `if` instead)
+- `VariableRebinding`—Same variable assigned multiple times in a block
 
-### Design `[D]`—3 checks
+### Design `[D]`—5 checks
 
 - `HighComplexity`—Functions with cyclomatic complexity exceeding threshold
 - `LowCohesion`—Modules where functions share no common data
 - `HighCoupling`—Modules with too many external dependencies
+- `TagTODO`—TODO comments that should be addressed
+- `TagFIXME`—FIXME comments indicating known bugs
 
 ### Observability `[O]`—5 checks
 

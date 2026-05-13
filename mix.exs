@@ -63,15 +63,17 @@ defmodule MetaCredo.MixProject do
       # Development and documentation
       {:ex_doc, "~> 0.34", only: :dev, runtime: false},
       {:excoveralls, "~> 0.18", only: :test, runtime: false},
+      {:oeditus_credo, "~> 0.6", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.4", only: [:dev, :test], runtime: false}
     ]
   end
 
   defp aliases do
     [
-      quality: ["format", "compile --warnings-as-errors", "dialyzer"],
+      quality: ["format", "compile --warnings-as-errors", "credo", "dialyzer"],
       "quality.ci": [
         "format --check-formatted",
+        "credo --strict",
         "compile --warnings-as-errors",
         "dialyzer"
       ]
@@ -83,8 +85,8 @@ defmodule MetaCredo.MixProject do
     Cross-language static code analysis tool built on MetaAST.
     Write a check once, run it across Python, JavaScript, Elixir, Ruby,
     Haskell, Erlang, and all other languages supported by Metastatic.
-    Provides 45 checks covering security (CWE Top 25), code quality,
-    readability, design, observability, and refactoring opportunities.
+    Provides 72 checks covering security (CWE Top 25), code quality,
+    readability, design, consistency, observability, and refactoring.
     """
   end
 
@@ -124,6 +126,7 @@ defmodule MetaCredo.MixProject do
       formatters: ["html", "epub"],
       groups_for_modules: groups_for_modules(),
       nest_modules_by_prefix: [
+        MetaCredo.Check.Consistency,
         MetaCredo.Check.Security,
         MetaCredo.Check.Warning,
         MetaCredo.Check.Readability,
@@ -161,6 +164,10 @@ defmodule MetaCredo.MixProject do
       CLI: [
         MetaCredo.CLI.Output
       ],
+      "Consistency Checks": [
+        MetaCredo.Check.Consistency.ExceptionNames,
+        MetaCredo.Check.Consistency.ParameterPatternMatching
+      ],
       "Security Checks": [
         MetaCredo.Check.Security.HardcodedValue,
         MetaCredo.Check.Security.SQLInjection,
@@ -192,24 +199,49 @@ defmodule MetaCredo.MixProject do
         MetaCredo.Check.Warning.BlockingInPlug,
         MetaCredo.Check.Warning.MissingThrottle,
         MetaCredo.Check.Warning.InefficientFilter,
-        MetaCredo.Check.Warning.ImperativeStatusHandling
+        MetaCredo.Check.Warning.ImperativeStatusHandling,
+        MetaCredo.Check.Warning.UnusedOperation,
+        MetaCredo.Check.Warning.UnsafeExec,
+        MetaCredo.Check.Warning.BoolOperationOnSameValues,
+        MetaCredo.Check.Warning.OperationOnSameValues,
+        MetaCredo.Check.Warning.OperationWithConstantResult,
+        MetaCredo.Check.Warning.LazyLogging,
+        MetaCredo.Check.Warning.DebugLeftover,
+        MetaCredo.Check.Warning.RaiseInsideRescue
       ],
       "Readability Checks": [
         MetaCredo.Check.Readability.MagicNumber,
         MetaCredo.Check.Readability.DeepNesting,
         MetaCredo.Check.Readability.LongFunction,
         MetaCredo.Check.Readability.ComplexConditional,
-        MetaCredo.Check.Readability.LongParameterList
+        MetaCredo.Check.Readability.LongParameterList,
+        MetaCredo.Check.Readability.FunctionNames,
+        MetaCredo.Check.Readability.ModuleNames,
+        MetaCredo.Check.Readability.VariableNames,
+        MetaCredo.Check.Readability.ModuleDoc,
+        MetaCredo.Check.Readability.SinglePipe,
+        MetaCredo.Check.Readability.NestedFunctionCalls,
+        MetaCredo.Check.Readability.Specs,
+        MetaCredo.Check.Readability.LargeNumbers
       ],
       "Refactor Checks": [
         MetaCredo.Check.Refactor.SimplifyConditional,
         MetaCredo.Check.Refactor.DeadCode,
-        MetaCredo.Check.Refactor.CodeDuplication
+        MetaCredo.Check.Refactor.CodeDuplication,
+        MetaCredo.Check.Refactor.NegatedConditionWithElse,
+        MetaCredo.Check.Refactor.DoubleBooleanNegation,
+        MetaCredo.Check.Refactor.AppendSingleItem,
+        MetaCredo.Check.Refactor.PipeChainStart,
+        MetaCredo.Check.Refactor.FilterCount,
+        MetaCredo.Check.Refactor.UnlessWithElse,
+        MetaCredo.Check.Refactor.VariableRebinding
       ],
       "Design Checks": [
         MetaCredo.Check.Design.HighComplexity,
         MetaCredo.Check.Design.LowCohesion,
-        MetaCredo.Check.Design.HighCoupling
+        MetaCredo.Check.Design.HighCoupling,
+        MetaCredo.Check.Design.TagTODO,
+        MetaCredo.Check.Design.TagFIXME
       ],
       "Observability Checks": [
         MetaCredo.Check.Observability.MissingTelemetryInObanWorker,

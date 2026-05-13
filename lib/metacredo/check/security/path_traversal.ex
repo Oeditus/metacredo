@@ -13,7 +13,7 @@ defmodule MetaCredo.Check.Security.PathTraversal do
       params: []
     ]
 
-  @file_functions ~w[
+  @file_functions ~W[
     read read! write write! stream! open
     read_file read_file! write_file
     readFile writeFile readFileSync writeFileSync
@@ -28,7 +28,7 @@ defmodule MetaCredo.Check.Security.PathTraversal do
     mkdir rmdir
   ]
 
-  @path_functions ~w[
+  @path_functions ~W[
     join expand absname relative_to
     Path.join Path.expand Path.absname
     path.join path.resolve path.normalize
@@ -36,7 +36,7 @@ defmodule MetaCredo.Check.Security.PathTraversal do
     Paths.get File.separator
   ]
 
-  @user_input_patterns ~w[
+  @user_input_patterns ~W[
     params request args query body
     input user filename file path
     name document image upload

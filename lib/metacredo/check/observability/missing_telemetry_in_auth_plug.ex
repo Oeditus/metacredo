@@ -4,8 +4,8 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInAuthPlug do
     base_priority: :high,
     param_defaults: [
       auth_indicators:
-        ~w[auth authenticate authorize permission verify check validate token session login logout sign_in sign_out],
-      telemetry_indicators: ~w[telemetry emit log audit trace metric record]
+        ~W[auth authenticate authorize permission verify check validate token session login logout sign_in sign_out],
+      telemetry_indicators: ~W[telemetry emit log audit trace metric record]
     ],
     explanations: [
       check: """

@@ -13,7 +13,7 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
       params: []
     ]
 
-  @sensitive_operations ~w[
+  @sensitive_operations ~W[
     delete delete! remove destroy
     update update! save put patch
     create insert insert! new
@@ -23,7 +23,7 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
     delete_all update_all
   ]
 
-  @authorization_indicators ~w[
+  @authorization_indicators ~W[
     authorize authorized? can? permit? allowed?
     authorize! check_permission has_permission?
     current_user conn.assigns user_id owner
@@ -33,7 +33,7 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
     Bodyguard Canada CanCan Pundit
   ]
 
-  @action_names ~w[
+  @action_names ~W[
     delete destroy remove update edit
     create new index show
   ]

@@ -13,13 +13,13 @@ defmodule MetaCredo.Check.Security.IncorrectAuthorization do
       params: []
     ]
 
-  @sensitive_operations ~w[
+  @sensitive_operations ~W[
     delete update insert create
     destroy save remove modify
     write transfer send execute
   ]
 
-  @authorization_functions ~w[
+  @authorization_functions ~W[
     authorize can? permit? allowed?
     has_permission check_access verify_access
     authorize! policy

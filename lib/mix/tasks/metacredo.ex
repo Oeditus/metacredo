@@ -52,7 +52,7 @@ defmodule Mix.Tasks.Metacredo do
       |> maybe_add(:files_included, parse_list(opts[:files_included]))
       |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
 
-    {:ok, report} = Execution.run(execution_opts)
+    report = Execution.run(execution_opts)
 
     case opts[:format] do
       "json" ->

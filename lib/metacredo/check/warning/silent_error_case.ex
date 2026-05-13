@@ -80,7 +80,7 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
     Enum.any?(arms, fn
       {:match_arm, arm_meta, _body} ->
         pattern = Keyword.get(arm_meta, :pattern)
-        matches_error_tuple?(pattern) or is_catchall?(pattern)
+        matches_error_tuple?(pattern) or catchall?(pattern)
 
       _ ->
         false
@@ -93,7 +93,7 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
   defp matches_error_tuple?({:tuple, _, [{:literal, _, :error} | _]}), do: true
   defp matches_error_tuple?(_), do: false
 
-  defp is_catchall?({:variable, _, "_"}), do: true
-  defp is_catchall?(:_), do: true
-  defp is_catchall?(_), do: false
+  defp catchall?({:variable, _, "_"}), do: true
+  defp catchall?(:_), do: true
+  defp catchall?(_), do: false
 end

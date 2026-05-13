@@ -13,9 +13,9 @@ defmodule MetaCredo.Check.Security.SQLInjection do
       params: []
     ]
 
-  @sql_keywords ~w[SELECT INSERT UPDATE DELETE FROM WHERE JOIN DROP CREATE ALTER TRUNCATE EXEC EXECUTE]
+  @sql_keywords ~W[SELECT INSERT UPDATE DELETE FROM WHERE JOIN DROP CREATE ALTER TRUNCATE EXEC EXECUTE]
 
-  @query_functions ~w[
+  @query_functions ~W[
     query execute exec run sql raw_query
     execute_query execute_sql run_sql
     Repo.query Ecto.Adapters.SQL.query

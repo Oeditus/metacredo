@@ -77,6 +77,4 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
       (String.contains?(func_name, "Task.async") and
          not String.contains?(func_name, "Supervisor"))
   end
-
-  defp unsupervised_task?(_), do: false
 end

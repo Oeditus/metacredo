@@ -97,7 +97,7 @@ defmodule MetaCredo.ExecutionTest do
         ])
 
       # Run through the full pipeline which includes disable filtering
-      {:ok, report} =
+      report =
         Execution.run(
           config: %{
             name: "test",

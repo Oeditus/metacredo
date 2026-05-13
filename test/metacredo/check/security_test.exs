@@ -115,7 +115,9 @@ defmodule MetaCredo.Check.SecurityTest do
           :string,
           :<>,
           literal_string("SELECT * FROM users WHERE id = ", line: 10),
-          var("user_id"), line: 10)
+          var("user_id"),
+          line: 10
+        )
 
       issues = run_check(Security.SQLInjection, ast: ast)
       assert_issue(issues, message: ~r/SQL injection/)
