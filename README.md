@@ -5,8 +5,8 @@
 Cross-language static code analysis tool built on
 [`MetaAST`](https://github.com/Oeditus/metastatic).  
   
-Write a check once, run it across Elixir, Python,
-Ruby, Haskell, Erlang, and all other languages supported by Metastatic.
+Write a check once, run it across Elixir, Erlang, Ruby,
+Python, Haskell, and all other languages supported by Metastatic.
 
 ## Credits
 
@@ -264,11 +264,11 @@ checks: %{
 
 The following items are planned for future releases:
 
-1. **Plugin system** for third-party checks (mirrors Credo plugins).
-2. **LSP integration** for in-editor diagnostics.
-3. **Auto-fix / code modification** via MetaAST transformations.
-4. **CI/CD integrations** (GitHub Actions, GitLab CI, etc.).
-5. **Extract analysis modules from metastatic core** in the next major
+- [ ] **Plugin system** for third-party checks (mirrors Credo plugins).
+- [ ] **LSP integration** for in-editor diagnostics.
+- [ ] **Auto-fix / code modification** via MetaAST transformations.
+- [x] **CI/CD integrations** (GitHub Actions, GitLab CI, etc.).
+- [ ] **Extract analysis modules from metastatic core** in the next major
    release of metastatic, using deprecated re-exports to bridge the
    transition.
 

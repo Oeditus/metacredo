@@ -134,12 +134,12 @@ defmodule MetaCredo.MixProject do
       groups_for_modules: groups_for_modules(),
       nest_modules_by_prefix: [
         MetaCredo.Check.Consistency,
-        MetaCredo.Check.Security,
-        MetaCredo.Check.Warning,
-        MetaCredo.Check.Readability,
-        MetaCredo.Check.Refactor,
         MetaCredo.Check.Design,
         MetaCredo.Check.Observability,
+        MetaCredo.Check.Readability,
+        MetaCredo.Check.Refactor,
+        MetaCredo.Check.Security,
+        MetaCredo.Check.Warning,
         MetaCredo.CLI
       ],
       before_closing_body_tag: &before_closing_body_tag/1,
@@ -167,9 +167,6 @@ defmodule MetaCredo.MixProject do
         MetaCredo.Issue,
         MetaCredo.SourceFile,
         MetaCredo.Sources
-      ],
-      CLI: [
-        MetaCredo.CLI.Output
       ],
       "Consistency Checks": [
         MetaCredo.Check.Consistency.ExceptionNames,
@@ -247,8 +244,8 @@ defmodule MetaCredo.MixProject do
         MetaCredo.Check.Design.HighComplexity,
         MetaCredo.Check.Design.LowCohesion,
         MetaCredo.Check.Design.HighCoupling,
-        MetaCredo.Check.Design.TagTODO,
-        MetaCredo.Check.Design.TagFIXME
+        MetaCredo.Check.Design.TagFixme,
+        MetaCredo.Check.Design.TagTodo
       ],
       "Observability Checks": [
         MetaCredo.Check.Observability.MissingTelemetryInObanWorker,
@@ -256,6 +253,11 @@ defmodule MetaCredo.MixProject do
         MetaCredo.Check.Observability.MissingTelemetryInAuthPlug,
         MetaCredo.Check.Observability.MissingTelemetryForExternalHttp,
         MetaCredo.Check.Observability.TelemetryInRecursiveFunction
+      ],
+      Internals: [
+        MetaCredo.Check.Utils,
+        MetaCredo.CheckCase,
+        MetaCredo.CLI.Output
       ]
     ]
   end
