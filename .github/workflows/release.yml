@@ -18,12 +18,6 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Checkout metastatic (path dependency)
-        uses: actions/checkout@v4
-        with:
-          repository: Oeditus/metastatic
-          path: ../metastatic
-
       - name: Set up Elixir
         uses: erlef/setup-beam@v1
         with:
