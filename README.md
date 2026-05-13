@@ -1,16 +1,30 @@
-<p align="center">
-  <img src="priv/images/logo-200.png" alt="MetaCredo" width="200">
-</p>
+<img src="priv/images/logo-200.png" alt="MetaCredo" width="128" align="right">
 
-<h1 align="center">MetaCredo</h1>
+# MetaCredo
 
-<p align="center">
-  Cross-language static code analysis tool built on
-  <a href="https://github.com/Oeditus/metastatic">MetaAST</a>.
-  <br/>
-  Write a check once, run it across Elixir, Python, Ruby, Haskell, Erlang, and
-  all other languages supported by Metastatic.
-</p>
+Cross-language static code analysis tool built on
+[`MetaAST`](https://github.com/Oeditus/metastatic).  
+  
+Write a check once, run it across Elixir, Python,
+Ruby, Haskell, Erlang, and all other languages supported by Metastatic.
+
+## Credits
+
+MetaCredo stands on the shoulders of
+[Credo](https://github.com/rrrene/credo) by Rene Foehring—an
+exceptional static analysis tool that has shaped how the entire Elixir
+community thinks about code quality, consistency, and teaching through
+tooling. Credo's design—its check behaviour, category system,
+configuration format, and the philosophy that a linter should *teach*
+rather than merely scold—served as the direct architectural
+inspiration for MetaCredo. We are grateful for the years of thoughtful
+work that went into Credo and the high bar it set for developer
+experience in static analysis.
+
+MetaCredo extends that vision across language boundaries: every check
+operates on Metastatic's unified MetaAST, so the same insight that
+helps an Elixir developer can help a Python, Ruby, or Haskell developer
+just as well.
 
 ## Installation
 
@@ -56,68 +70,68 @@ check is cross-language by default.
 
 ## Check Categories (45 checks)
 
-### Security `[S]` -- 15 checks
+### Security `[S]`—15 checks
 
-- `HardcodedValue` -- Hardcoded URLs, IPs, and sensitive values in string literals
-- `SQLInjection` -- SQL string concatenation/interpolation with variables (CWE-89)
-- `XSSVulnerability` -- raw(), html_safe, innerHTML, dangerouslySetInnerHTML (CWE-79)
-- `PathTraversal` -- File operations with user-controlled paths (CWE-22)
-- `SSRFVulnerability` -- HTTP requests with user-controlled URLs (CWE-918)
-- `SensitiveDataExposure` -- Logging/inspecting passwords, tokens, PII (CWE-200)
-- `MissingCSRFProtection` -- State-changing actions without CSRF validation (CWE-352)
-- `InsecureDirectObjectReference` -- Direct DB lookups from user params (CWE-639)
-- `UnrestrictedFileUpload` -- File uploads without type/size validation (CWE-434)
-- `TOCTOU` -- File.exists? followed by file operations (CWE-367)
-- `MissingAuthentication` -- Controllers/handlers without auth middleware (CWE-306)
-- `MissingAuthorization` -- Sensitive operations without authorization (CWE-862)
-- `IncorrectAuthorization` -- Auth-after-action bugs, negation patterns (CWE-863)
-- `ImproperInputValidation` -- User input to sensitive ops without validation (CWE-20)
-- `InlineJavascript` -- Inline script tags, onclick handlers, javascript: URIs
+- `HardcodedValue`—Hardcoded URLs, IPs, and sensitive values in string literals
+- `SQLInjection`—SQL string concatenation/interpolation with variables (CWE-89)
+- `XSSVulnerability`—raw(), html_safe, innerHTML, dangerouslySetInnerHTML (CWE-79)
+- `PathTraversal`—File operations with user-controlled paths (CWE-22)
+- `SSRFVulnerability`—HTTP requests with user-controlled URLs (CWE-918)
+- `SensitiveDataExposure`—Logging/inspecting passwords, tokens, PII (CWE-200)
+- `MissingCSRFProtection`—State-changing actions without CSRF validation (CWE-352)
+- `InsecureDirectObjectReference`—Direct DB lookups from user params (CWE-639)
+- `UnrestrictedFileUpload`—File uploads without type/size validation (CWE-434)
+- `TOCTOU`—File.exists? followed by file operations (CWE-367)
+- `MissingAuthentication`—Controllers/handlers without auth middleware (CWE-306)
+- `MissingAuthorization`—Sensitive operations without authorization (CWE-862)
+- `IncorrectAuthorization`—Auth-after-action bugs, negation patterns (CWE-863)
+- `ImproperInputValidation`—User input to sensitive ops without validation (CWE-20)
+- `InlineJavascript`—Inline script tags, onclick handlers, javascript: URIs
 
-### Warning `[W]` -- 14 checks
+### Warning `[W]`—14 checks
 
-- `MissingErrorHandling` -- `{:ok, _} = call()` without error handling
-- `SilentErrorCase` -- case matching {:ok, _} without {:error, _} branch
-- `SwallowingException` -- try/rescue without logging or re-raising
-- `NPlusOneQuery` -- Database calls inside collection operations (N+1)
-- `MissingPreload` -- Collection ops over DB results without eager loading
-- `UnmanagedTask` -- Task.async without Task.Supervisor
-- `SyncOverAsync` -- Blocking calls in GenServer/LiveView callbacks
-- `MissingHandleAsync` -- Blocking in handle_event without async delegation
-- `DirectStructUpdate` -- Struct updates bypassing changesets
-- `CallbackHell` -- Deeply nested conditionals exceeding threshold
-- `BlockingInPlug` -- Blocking I/O in Plug call/init middleware
-- `MissingThrottle` -- Expensive operations without rate limiting
-- `InefficientFilter` -- Repo.all then Enum.filter (filter in memory)
-- `ImperativeStatusHandling` -- Imperative if/else chains on status codes
+- `MissingErrorHandling`—`{:ok, _} = call()` without error handling
+- `SilentErrorCase`—case matching {:ok, _} without {:error, _} branch
+- `SwallowingException`—try/rescue without logging or re-raising
+- `NPlusOneQuery`—Database calls inside collection operations (N+1)
+- `MissingPreload`—Collection ops over DB results without eager loading
+- `UnmanagedTask`—Task.async without Task.Supervisor
+- `SyncOverAsync`—Blocking calls in GenServer/LiveView callbacks
+- `MissingHandleAsync`—Blocking in handle_event without async delegation
+- `DirectStructUpdate`—Struct updates bypassing changesets
+- `CallbackHell`—Deeply nested conditionals exceeding threshold
+- `BlockingInPlug`—Blocking I/O in Plug call/init middleware
+- `MissingThrottle`—Expensive operations without rate limiting
+- `InefficientFilter`—Repo.all then Enum.filter (filter in memory)
+- `ImperativeStatusHandling`—Imperative if/else chains on status codes
 
-### Readability `[R]` -- 5 checks
+### Readability `[R]`—5 checks
 
-- `MagicNumber` -- Numeric literals in expressions without named constants
-- `DeepNesting` -- Functions with nesting depth exceeding threshold
-- `LongFunction` -- Functions with too many statements
-- `ComplexConditional` -- Deeply nested boolean operations
-- `LongParameterList` -- Functions with too many parameters
+- `MagicNumber`—Numeric literals in expressions without named constants
+- `DeepNesting`—Functions with nesting depth exceeding threshold
+- `LongFunction`—Functions with too many statements
+- `ComplexConditional`—Deeply nested boolean operations
+- `LongParameterList`—Functions with too many parameters
 
-### Refactor `[F]` -- 3 checks
+### Refactor `[F]`—3 checks
 
-- `SimplifyConditional` -- `if x do true else false end` patterns
-- `DeadCode` -- Unreachable code after early returns
-- `CodeDuplication` -- Duplicate function bodies (same AST structure)
+- `SimplifyConditional`—`if x do true else false end` patterns
+- `DeadCode`—Unreachable code after early returns
+- `CodeDuplication`—Duplicate function bodies (same AST structure)
 
-### Design `[D]` -- 3 checks
+### Design `[D]`—3 checks
 
-- `HighComplexity` -- Functions with cyclomatic complexity exceeding threshold
-- `LowCohesion` -- Modules where functions share no common data
-- `HighCoupling` -- Modules with too many external dependencies
+- `HighComplexity`—Functions with cyclomatic complexity exceeding threshold
+- `LowCohesion`—Modules where functions share no common data
+- `HighCoupling`—Modules with too many external dependencies
 
-### Observability `[O]` -- 5 checks
+### Observability `[O]`—5 checks
 
-- `MissingTelemetryInObanWorker` -- Oban worker perform/1 without telemetry
-- `MissingTelemetryInLiveviewMount` -- LiveView mount/3 without telemetry
-- `MissingTelemetryInAuthPlug` -- Auth plug call/2 without telemetry
-- `MissingTelemetryForExternalHttp` -- HTTP client calls without telemetry wrapper
-- `TelemetryInRecursiveFunction` -- Telemetry inside recursive functions (anti-pattern)
+- `MissingTelemetryInObanWorker`—Oban worker perform/1 without telemetry
+- `MissingTelemetryInLiveviewMount`—LiveView mount/3 without telemetry
+- `MissingTelemetryInAuthPlug`—Auth plug call/2 without telemetry
+- `MissingTelemetryForExternalHttp`—HTTP client calls without telemetry wrapper
+- `TelemetryInRecursiveFunction`—Telemetry inside recursive functions (anti-pattern)
 
 ## Configuration
 
@@ -215,24 +229,6 @@ checks: %{
   and remains available for Elixir-only projects.
 - **MetaCredo** covers the same detection patterns as OeditusCredo but
   works across all languages supported by Metastatic.
-
-## Credits
-
-MetaCredo stands on the shoulders of
-[Credo](https://github.com/rrrene/credo) by Rene Foehring -- an
-exceptional static analysis tool that has shaped how the entire Elixir
-community thinks about code quality, consistency, and teaching through
-tooling. Credo's design -- its check behaviour, category system,
-configuration format, and the philosophy that a linter should *teach*
-rather than merely scold -- served as the direct architectural
-inspiration for MetaCredo. We are grateful for the years of thoughtful
-work that went into Credo and the high bar it set for developer
-experience in static analysis.
-
-MetaCredo extends that vision across language boundaries: every check
-operates on Metastatic's unified MetaAST, so the same insight that
-helps an Elixir developer can help a Python, Ruby, or Haskell developer
-just as well.
 
 ## Roadmap
 

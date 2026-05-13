@@ -1,0 +1,99 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Checkout metastatic (path dependency)
+        uses: actions/checkout@v4
+        with:
+          repository: Oeditus/metastatic
+          path: ../metastatic
+
+      - name: Set up Elixir
+        uses: erlef/setup-beam@v1
+        with:
+          elixir-version: '1.18'
+          otp-version: '27'
+
+      - name: Restore dependencies cache
+        uses: actions/cache@v4
+        with:
+          path: deps
+          key: ${{ runner.os }}-mix-${{ hashFiles('**/mix.lock') }}
+          restore-keys: ${{ runner.os }}-mix-
+
+      - name: Install dependencies
+        run: mix deps.get
+
+      - name: Run tests
+        run: mix test
+
+      - name: Build hex package
+        run: MIX_ENV=prod mix hex.build
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+          else
+            echo "version=$(grep '@version' mix.exs | sed 's/.*"\(.*\)".*/\1/')" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build docs
+        run: MIX_ENV=dev mix docs
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: |
+            metacredo-${{ steps.version.outputs.version }}.tar
+          body: |
+            ## MetaCredo ${{ steps.version.outputs.version }}
+
+            Cross-language static code analysis built on MetaAST.
+
+            ### Installation
+
+            **From Hex.pm:**
+            ```elixir
+            def deps do
+              [{:metacredo, "~> ${{ steps.version.outputs.version }}", only: [:dev, :test], runtime: false}]
+            end
+            ```
+
+            **From GitHub:**
+            ```elixir
+            def deps do
+              [{:metacredo, github: "Oeditus/metacredo", tag: "${{ github.ref_name }}"}]
+            end
+            ```
+
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/CHANGELOG.md) for what changed.
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publish to Hex.pm
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          HEX_API_KEY: ${{ secrets.HEX_API_KEY }}
+        run: |
+          mix hex.publish --yes || echo "Hex publish skipped (may need HEX_API_KEY secret)"
