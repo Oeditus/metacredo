@@ -166,7 +166,7 @@
           #
           ## Oeditus
           #
-          {OeditusCredo.Check.Warning.MissingErrorHandling, []},
+          {OeditusCredo.Check.Warning.MissingErrorHandling, exclude_test_files: true},
           {OeditusCredo.Check.Warning.SilentErrorCase, []},
           {OeditusCredo.Check.Warning.SwallowingException, []},
           # Database & Performance
