@@ -56,6 +56,38 @@ defmodule MetaCredo.CLI.Output do
     :ok
   end
 
+  @doc """
+  Prints issues in GitHub Actions workflow command format.
+
+  Produces `::error` / `::warning` lines that GitHub Actions renders as
+  inline PR annotations.
+  """
+  @spec print_github(map()) :: :ok
+  def print_github(%{issues: issues, summary: summary}) do
+    Enum.each(issues, fn issue ->
+      level = github_level(issue.severity)
+      file = issue.filename || "unknown"
+      check_short = issue.check |> inspect() |> String.split(".") |> List.last()
+
+      location =
+        ["file=#{file}"] ++
+          if(issue.line_no, do: ["line=#{issue.line_no}"], else: []) ++
+          if(issue.column, do: ["col=#{issue.column}"], else: [])
+
+      IO.puts("::#{level} #{Enum.join(location, ",")}::#{check_short}: #{issue.message}")
+    end)
+
+    total = summary.total
+    IO.puts("metacredo: #{total} issue(s) found")
+    :ok
+  end
+
+  defp github_level(:error), do: "error"
+  defp github_level(:warning), do: "warning"
+  defp github_level(:info), do: "notice"
+  defp github_level(:refactoring_opportunity), do: "notice"
+  defp github_level(_), do: "warning"
+
   @doc "Formats issues as JSON string."
   @spec to_json(map()) :: String.t()
   def to_json(%{issues: issues, summary: summary, timing_ms: timing}) do

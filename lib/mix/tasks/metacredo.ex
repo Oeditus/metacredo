@@ -9,12 +9,29 @@ defmodule Mix.Tasks.Metacredo do
       $ mix metacredo --strict
       $ mix metacredo --only security,warning
       $ mix metacredo --format json
+      $ mix metacredo --format github
+      $ mix metacredo --diff
+      $ mix metacredo --diff --base origin/develop --head HEAD
       $ mix metacredo explain MetaCredo.Check.Security.HardcodedValue
+
+  ## Diff Mode
+
+  When `--diff` is given, only files changed between `--base` (default:
+  `origin/main`) and `--head` (default: `HEAD`) are analyzed. This is
+  ideal for CI pipelines where you only want to check new or modified
+  code in a pull request.
+
+  ## GitHub Actions Format
+
+  Use `--format github` to emit GitHub Actions workflow commands that
+  produce inline PR annotations:
+
+      ::error file=lib/foo.ex,line=42::Security issue found
   """
 
   use Mix.Task
 
-  alias MetaCredo.{CLI.Output, Config, Execution, Sources}
+  alias MetaCredo.{CLI.Output, Config, Execution, Git, Sources}
 
   @impl Mix.Task
   def run(argv) do
@@ -29,7 +46,10 @@ defmodule Mix.Tasks.Metacredo do
           format: :string,
           config_file: :string,
           files_included: :string,
-          files_excluded: :string
+          files_excluded: :string,
+          diff: :boolean,
+          base: :string,
+          head: :string
         ]
       )
 
@@ -51,12 +71,16 @@ defmodule Mix.Tasks.Metacredo do
       |> maybe_add(:ignore, parse_list(opts[:ignore]))
       |> maybe_add(:files_included, parse_list(opts[:files_included]))
       |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
+      |> maybe_add_diff_files(opts)
 
     report = Execution.run(execution_opts)
 
     case opts[:format] do
       "json" ->
         IO.puts(Output.to_json(report))
+
+      "github" ->
+        Output.print_github(report)
 
       _ ->
         Output.print_report(report)
@@ -70,6 +94,36 @@ defmodule Mix.Tasks.Metacredo do
 
     if exit_status > 0 do
       System.at_exit(fn _ -> exit({:shutdown, exit_status}) end)
+    end
+  end
+
+  # Resolves changed files from git diff and injects them as :files_included.
+  defp maybe_add_diff_files(opts_acc, opts) do
+    if opts[:diff] do
+      repo_root = Git.repo_root(File.cwd!())
+
+      unless repo_root do
+        Mix.raise("--diff requires a git repository, but none was found")
+      end
+
+      diff_opts =
+        []
+        |> maybe_add(:base, opts[:base])
+        |> maybe_add(:head, opts[:head])
+        |> maybe_add(:extensions, Sources.supported_extensions())
+
+      files = Git.changed_files!(repo_root, diff_opts)
+
+      if files == [] do
+        Mix.shell().info("No changed files found in diff, nothing to analyze.")
+      end
+
+      # Convert relative paths to absolute for Sources.find/1
+      absolute_files = Enum.map(files, &Path.join(repo_root, &1))
+
+      Keyword.put(opts_acc, :files_included, absolute_files)
+    else
+      opts_acc
     end
   end
 

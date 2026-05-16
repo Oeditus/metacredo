@@ -260,6 +260,35 @@ checks: %{
 - **MetaCredo** covers the same detection patterns as OeditusCredo but
   works across all languages supported by Metastatic.
 
+## CI / Diff-Based Analysis
+
+MetaCredo can analyze only the files changed in a pull request, making it
+ideal for CI pipelines:
+
+```sh
+# Analyze only changed files (default: origin/main...HEAD)
+$ mix metacredo --diff --strict
+
+# GitHub Actions with inline PR annotations
+$ mix metacredo --diff --format github --strict
+
+# Custom base branch
+$ mix metacredo --diff --base origin/develop --format github
+```
+
+`--format github` emits GitHub Actions workflow commands that produce
+inline annotations directly on the PR diff:
+
+```
+::error file=lib/repo.ex,line=42::HardcodedValue: Hardcoded URL found
+::warning file=lib/worker.ex,line=15::MissingErrorHandling: Missing error handling
+metacredo: 2 issue(s) found
+```
+
+See [CI.md](CI.md) for the complete CI integration guide, including
+GitHub Actions workflows, GitLab CI examples, the `MetaCredo.Git` API,
+and troubleshooting.
+
 ## Roadmap
 
 The following items are planned for future releases:

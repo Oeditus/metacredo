@@ -104,6 +104,7 @@ defmodule MetaCredo.MixProject do
         .formatter.exs
         mix.exs
         README.md
+        CI.md
         LICENSE
         CHANGELOG.md
       ),
@@ -150,6 +151,7 @@ defmodule MetaCredo.MixProject do
   defp extras do
     [
       "README.md",
+      "CI.md": [title: "CI / Diff-Based Analysis"],
       LICENSE: [title: "License"],
       "CHANGELOG.md": [title: "Changelog"]
     ]
