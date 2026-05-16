@@ -230,7 +230,7 @@ defmodule MetaCredo.Analysis.Complexity.Cyclomatic do
 
   # Function definition (3-tuple): walk body
   defp walk({:function_def, meta, [body]}, count) when is_list(meta) do
-    params = Keyword.get(meta, :params, [])
+    params = Keyword.get(meta, :params) || []
 
     # Walk parameters (for pattern params with embedded conditionals)
     count =
