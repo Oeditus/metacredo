@@ -99,7 +99,7 @@ defmodule MetaCredo.Analysis.Complexity.Nesting do
 
       _ ->
         {_, max} =
-          Enum.reduce(children, {current, max}, fn child, {c, m} ->
+          Enum.reduce(children || [], {current, max}, fn child, {c, m} ->
             walk(child, c + 1, m)
           end)
 
@@ -148,7 +148,7 @@ defmodule MetaCredo.Analysis.Complexity.Nesting do
     {_, max} =
       Enum.reduce(arms, {current, max}, fn
         {:match_arm, _meta, body_list}, {_c, m} ->
-          Enum.reduce(body_list, {current, m}, fn child, {_cc, mm} ->
+          Enum.reduce(body_list || [], {current, m}, fn child, {_cc, mm} ->
             walk(child, current + 1, mm)
           end)
 
@@ -161,7 +161,7 @@ defmodule MetaCredo.Analysis.Complexity.Nesting do
 
   # Match arm (3-tuple): increment depth for body
   defp walk({:match_arm, _meta, body_list}, current, max) when is_list(body_list) do
-    Enum.reduce(body_list, {current, max}, fn child, {_c, m} ->
+    Enum.reduce(body_list || [], {current, max}, fn child, {_c, m} ->
       walk(child, current + 1, m)
     end)
   end
@@ -214,11 +214,11 @@ defmodule MetaCredo.Analysis.Complexity.Nesting do
 
   # Function definition (3-tuple): walk body
   defp walk({:function_def, meta, [body]}, current, max) when is_list(meta) do
-    params = Keyword.get(meta, :params, [])
+    params = Keyword.get(meta, :params) || []
 
     # Walk parameters
     {_, max} =
-      Enum.reduce(params, {current, max}, fn
+      Enum.reduce(params || [], {current, max}, fn
         {:param, meta, _name}, {c, m} when is_list(meta) ->
           pattern = Keyword.get(meta, :pattern)
           default = Keyword.get(meta, :default)
@@ -260,7 +260,7 @@ defmodule MetaCredo.Analysis.Complexity.Nesting do
   # Collection operations (3-tuple)
   defp walk({:collection_op, _meta, children}, current, max) when is_list(children) do
     {_, max} =
-      Enum.reduce(children, {current, max}, fn child, {c, m} ->
+      Enum.reduce(children || [], {current, max}, fn child, {c, m} ->
         walk(child, c, m)
       end)
 

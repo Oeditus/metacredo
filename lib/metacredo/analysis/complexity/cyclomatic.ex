@@ -102,7 +102,7 @@ defmodule MetaCredo.Analysis.Complexity.Cyclomatic do
         walk(body, count)
 
       _ ->
-        Enum.reduce(children, count, fn child, c -> walk(child, c) end)
+        Enum.reduce(children || [], count, fn child, c -> walk(child, c) end)
     end
   end
 
@@ -143,7 +143,7 @@ defmodule MetaCredo.Analysis.Complexity.Cyclomatic do
 
     Enum.reduce(arms, count, fn
       {:match_arm, _meta, body_list}, c ->
-        Enum.reduce(body_list, c, fn child, acc -> walk(child, acc) end)
+        Enum.reduce(body_list || [], c, fn child, acc -> walk(child, acc) end)
 
       other, c ->
         walk(other, c)

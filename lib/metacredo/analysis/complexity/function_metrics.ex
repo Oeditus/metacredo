@@ -81,7 +81,7 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
 
   defp walk_statements({:loop, meta, children}, count) when is_list(meta) and is_list(children) do
     count = count + 1
-    Enum.reduce(children, count, fn child, c -> walk_statements(child, c) end)
+    Enum.reduce(children || [], count, fn child, c -> walk_statements(child, c) end)
   end
 
   defp walk_statements({:exception_handling, _meta, [try_block, catches, else_block]}, count) do
@@ -103,7 +103,7 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
 
     Enum.reduce(arms, count, fn
       {:match_arm, _meta, body_list}, c ->
-        Enum.reduce(body_list, c, fn child, inner -> walk_statements(child, inner) end)
+        Enum.reduce(body_list || [], c, fn child, inner -> walk_statements(child, inner) end)
 
       other, c ->
         walk_statements(other, c)
@@ -111,7 +111,7 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
   end
 
   defp walk_statements({:match_arm, _meta, body_list}, count) when is_list(body_list) do
-    Enum.reduce(body_list, count, fn child, c -> walk_statements(child, c) end)
+    Enum.reduce(body_list || [], count, fn child, c -> walk_statements(child, c) end)
   end
 
   defp walk_statements({:lambda, _meta, [body]}, count) do
@@ -134,11 +134,11 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
   # Function definition (3-tuple)
   defp walk_statements({:function_def, meta, [body]}, count) when is_list(meta) do
     count = count + 1
-    params = Keyword.get(meta, :params, [])
+    params = Keyword.get(meta, :params) || []
 
     # Walk parameters
     count =
-      Enum.reduce(params, count, fn
+      Enum.reduce(params || [], count, fn
         {:param, meta, _name}, c when is_list(meta) ->
           pattern = Keyword.get(meta, :pattern)
           default = Keyword.get(meta, :default)
@@ -205,7 +205,7 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
   end
 
   defp walk_returns({:loop, meta, children}, count) when is_list(meta) and is_list(children) do
-    Enum.reduce(children, count, fn child, c -> walk_returns(child, c) end)
+    Enum.reduce(children || [], count, fn child, c -> walk_returns(child, c) end)
   end
 
   defp walk_returns({:exception_handling, _meta, [try_block, catches, else_block]}, count) do
@@ -224,7 +224,7 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
   defp walk_returns({:pattern_match, _meta, [_scrutinee | arms]}, count) when is_list(arms) do
     Enum.reduce(arms, count, fn
       {:match_arm, _meta, body_list}, c ->
-        Enum.reduce(body_list, c, fn child, inner -> walk_returns(child, inner) end)
+        Enum.reduce(body_list || [], c, fn child, inner -> walk_returns(child, inner) end)
 
       other, c ->
         walk_returns(other, c)
@@ -232,7 +232,7 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
   end
 
   defp walk_returns({:match_arm, _meta, body_list}, count) when is_list(body_list) do
-    Enum.reduce(body_list, count, fn child, c -> walk_returns(child, c) end)
+    Enum.reduce(body_list || [], count, fn child, c -> walk_returns(child, c) end)
   end
 
   defp walk_returns({:lambda, _meta, [body]}, count), do: walk_returns(body, count)
@@ -250,11 +250,11 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
 
   # Function definition (3-tuple)
   defp walk_returns({:function_def, meta, [body]}, count) when is_list(meta) do
-    params = Keyword.get(meta, :params, [])
+    params = Keyword.get(meta, :params) || []
 
     # Walk parameters
     count =
-      Enum.reduce(params, count, fn
+      Enum.reduce(params || [], count, fn
         {:param, meta, _name}, c when is_list(meta) ->
           pattern = Keyword.get(meta, :pattern)
           default = Keyword.get(meta, :default)

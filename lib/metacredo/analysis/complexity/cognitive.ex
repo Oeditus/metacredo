@@ -103,7 +103,7 @@ defmodule MetaCredo.Analysis.Complexity.Cognitive do
         walk(body, nesting + 1, acc)
 
       _ ->
-        Enum.reduce(children, acc, fn child, a -> walk(child, nesting, a) end)
+        Enum.reduce(children || [], acc, fn child, a -> walk(child, nesting, a) end)
     end
   end
 
@@ -157,7 +157,7 @@ defmodule MetaCredo.Analysis.Complexity.Cognitive do
     Enum.reduce(arms, acc, fn
       {:match_arm, _meta, body_list}, a ->
         a = a + 1 + nesting
-        Enum.reduce(body_list, a, fn child, inner -> walk(child, nesting + 1, inner) end)
+        Enum.reduce(body_list || [], a, fn child, inner -> walk(child, nesting + 1, inner) end)
 
       other, a ->
         walk(other, nesting, a)
@@ -244,7 +244,7 @@ defmodule MetaCredo.Analysis.Complexity.Cognitive do
 
   # Function definition (3-tuple): walk body
   defp walk({:function_def, meta, [body]}, nesting, acc) when is_list(meta) do
-    params = Keyword.get(meta, :params, [])
+    params = Keyword.get(meta, :params) || []
 
     acc =
       Enum.reduce(params, acc, fn
