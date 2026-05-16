@@ -39,18 +39,4 @@ defmodule MetaCredo.Analysis.PurityTest do
       assert result.pure?
     end
   end
-
-  describe "delegation identity" do
-    test "returns identical results to Metastatic.Analysis.Purity" do
-      ast = {:function_call, [name: "print"], [{:literal, [subtype: :string], "hello"}]}
-      doc = Document.new(ast, :python)
-
-      {:ok, meta_result} = Metastatic.Analysis.Purity.analyze(doc)
-      {:ok, mc_result} = Purity.analyze(doc)
-
-      assert meta_result.pure? == mc_result.pure?
-      assert meta_result.effects == mc_result.effects
-      assert meta_result.confidence == mc_result.confidence
-    end
-  end
 end

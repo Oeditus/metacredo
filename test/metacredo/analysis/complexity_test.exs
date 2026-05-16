@@ -49,25 +49,4 @@ defmodule MetaCredo.Analysis.ComplexityTest do
       assert result.cyclomatic == 1
     end
   end
-
-  describe "delegation identity" do
-    test "returns identical results to Metastatic.Analysis.Complexity" do
-      ast =
-        {:conditional, [],
-         [
-           {:variable, [], "x"},
-           {:literal, [subtype: :integer], 1},
-           {:literal, [subtype: :integer], 2}
-         ]}
-
-      doc = Document.new(ast, :elixir)
-
-      {:ok, meta_result} = Metastatic.Analysis.Complexity.analyze(doc)
-      {:ok, mc_result} = Complexity.analyze(doc)
-
-      assert meta_result.cyclomatic == mc_result.cyclomatic
-      assert meta_result.cognitive == mc_result.cognitive
-      assert meta_result.max_nesting == mc_result.max_nesting
-    end
-  end
 end

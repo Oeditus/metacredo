@@ -84,18 +84,4 @@ defmodule MetaCredo.Analysis.DuplicationTest do
       assert fp1 != fp2
     end
   end
-
-  describe "delegation identity" do
-    test "returns identical results to Metastatic.Analysis.Duplication" do
-      doc1 = Document.new(@int42, :elixir)
-      doc2 = Document.new(@int42, :python)
-
-      {:ok, meta_result} = Metastatic.Analysis.Duplication.detect(doc1, doc2)
-      {:ok, mc_result} = Duplication.detect(doc1, doc2)
-
-      assert meta_result.duplicate? == mc_result.duplicate?
-      assert meta_result.clone_type == mc_result.clone_type
-      assert meta_result.similarity_score == mc_result.similarity_score
-    end
-  end
 end

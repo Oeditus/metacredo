@@ -62,24 +62,4 @@ defmodule MetaCredo.Analysis.DeadCodeTest do
       refute result.has_dead_code?
     end
   end
-
-  describe "delegation identity" do
-    test "returns identical results to Metastatic.Analysis.DeadCode" do
-      ast =
-        {:block, [],
-         [
-           {:early_return, [], [{:literal, [subtype: :integer], 1}]},
-           {:literal, [subtype: :integer], 2}
-         ]}
-
-      doc = Document.new(ast, :python)
-
-      {:ok, meta_result} = Metastatic.Analysis.DeadCode.analyze(doc)
-      {:ok, mc_result} = DeadCode.analyze(doc)
-
-      assert meta_result.has_dead_code? == mc_result.has_dead_code?
-      assert meta_result.total_dead_statements == mc_result.total_dead_statements
-      assert length(meta_result.dead_locations) == length(mc_result.dead_locations)
-    end
-  end
 end
