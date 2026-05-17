@@ -41,19 +41,22 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
   def run(%SourceFile{} = source_file, params) do
     exclude_localhost = params_get(params, :exclude_localhost)
     exclude_local_ips = params_get(params, :exclude_local_ips)
-    ctx = {source_file, exclude_localhost, exclude_local_ips}
+    ast = SourceFile.ast(source_file)
+    doc_strings = CheckUtils.doc_string_contents(ast)
+    ctx = {source_file, exclude_localhost, exclude_local_ips, doc_strings}
 
     {_, issues} =
-      source_file
-      |> SourceFile.ast()
-      |> AST.prewalk([], fn node, acc -> traverse(node, acc, ctx) end)
+      AST.prewalk(ast, [], fn node, acc -> traverse(node, acc, ctx) end)
 
     issues
   end
 
   defp traverse({:literal, meta, value} = node, issues, ctx)
        when is_list(meta) and is_binary(value) do
-    if Keyword.get(meta, :subtype) == :string do
+    {_, _, _, doc_strings} = ctx
+
+    if Keyword.get(meta, :subtype) == :string and
+         not MapSet.member?(doc_strings, value) do
       {node, check_value(value, meta, issues, ctx)}
     else
       {node, issues}
@@ -62,7 +65,7 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
 
   defp traverse(node, issues, _ctx), do: {node, issues}
 
-  defp check_value(value, meta, issues, {source_file, exclude_localhost, exclude_local_ips}) do
+  defp check_value(value, meta, issues, {source_file, exclude_localhost, exclude_local_ips, _}) do
     line = Keyword.get(meta, :line)
 
     cond do

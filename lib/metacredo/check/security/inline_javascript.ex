@@ -42,18 +42,20 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do
+    ast = SourceFile.ast(source_file)
+    doc_strings = CheckUtils.doc_string_contents(ast)
+
     {_, issues} =
-      source_file
-      |> SourceFile.ast()
-      |> AST.prewalk([], fn node, acc -> traverse(node, acc, source_file) end)
+      AST.prewalk(ast, [], fn node, acc -> traverse(node, acc, source_file, doc_strings) end)
 
     issues
   end
 
   # Detect string literals containing inline script patterns
-  defp traverse({:literal, meta, content} = node, issues, source_file)
+  defp traverse({:literal, meta, content} = node, issues, source_file, doc_strings)
        when is_list(meta) and is_binary(content) do
-    if Keyword.get(meta, :subtype) == :string do
+    if Keyword.get(meta, :subtype) == :string and
+         not MapSet.member?(doc_strings, content) do
       content_lower = String.downcase(content)
 
       if Enum.any?(@dangerous_patterns, &String.contains?(content_lower, &1)) do
@@ -79,7 +81,7 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
   end
 
   # Detect dangerous function calls
-  defp traverse({:function_call, meta, args} = node, issues, source_file)
+  defp traverse({:function_call, meta, args} = node, issues, source_file, _doc_strings)
        when is_list(meta) do
     fn_name = Keyword.get(meta, :name, "")
     fn_lower = String.downcase(fn_name)
@@ -123,7 +125,7 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
     end
   end
 
-  defp traverse(node, issues, _source_file), do: {node, issues}
+  defp traverse(node, issues, _source_file, _doc_strings), do: {node, issues}
 
   # --- Private Helpers ---
 

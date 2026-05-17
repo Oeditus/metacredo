@@ -6,6 +6,7 @@ defmodule Mix.Tasks.Metacredo do
   ## Usage
 
       $ mix metacredo
+      $ mix metacredo --path lib/my_module
       $ mix metacredo --strict
       $ mix metacredo --only security,warning
       $ mix metacredo --format json
@@ -13,6 +14,15 @@ defmodule Mix.Tasks.Metacredo do
       $ mix metacredo --diff
       $ mix metacredo --diff --base origin/develop --head HEAD
       $ mix metacredo explain MetaCredo.Check.Security.HardcodedValue
+
+  ## Path
+
+  The `--path` option restricts analysis to a specific file or directory.
+  When omitted, the current directory (`.`) is used, with excluded patterns
+  from the configuration still applied.
+
+      $ mix metacredo --path lib/
+      $ mix metacredo --path lib/my_app/accounts.ex
 
   ## Diff Mode
 
@@ -40,6 +50,7 @@ defmodule Mix.Tasks.Metacredo do
     {opts, args, _} =
       OptionParser.parse(argv,
         strict: [
+          path: :string,
           strict: :boolean,
           only: :string,
           ignore: :string,
@@ -71,6 +82,7 @@ defmodule Mix.Tasks.Metacredo do
       |> maybe_add(:ignore, parse_list(opts[:ignore]))
       |> maybe_add(:files_included, parse_list(opts[:files_included]))
       |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
+      |> maybe_add_path(opts)
       |> maybe_add_diff_files(opts)
 
     report = Execution.run(execution_opts)
@@ -97,13 +109,33 @@ defmodule Mix.Tasks.Metacredo do
     end
   end
 
+  # Applies --path as the analysis root when --files-included is not set.
+  # Defaults to "." (current directory) when neither option is provided.
+  defp maybe_add_path(opts_acc, opts) do
+    if Keyword.has_key?(opts_acc, :files_included) do
+      opts_acc
+    else
+      path = opts[:path] || "."
+      Keyword.put(opts_acc, :files_included, [path])
+    end
+  end
+
   # Resolves changed files from git diff and injects them as :files_included.
+  # When --path is given, the repo root is resolved from that path so that
+  # diffs in an external directory are handled correctly. Files are then
+  # further filtered to those under the given path.
   defp maybe_add_diff_files(opts_acc, opts) do
     if opts[:diff] do
-      repo_root = Git.repo_root(File.cwd!())
+      git_search_dir =
+        case opts[:path] do
+          nil -> File.cwd!()
+          path -> path |> Path.expand() |> Path.absname()
+        end
+
+      repo_root = Git.repo_root(git_search_dir)
 
       unless repo_root do
-        Mix.raise("--diff requires a git repository, but none was found")
+        Mix.raise("--diff requires a git repository, but none was found in #{git_search_dir}")
       end
 
       diff_opts =
@@ -114,12 +146,23 @@ defmodule Mix.Tasks.Metacredo do
 
       files = Git.changed_files!(repo_root, diff_opts)
 
-      if files == [] do
-        Mix.shell().info("No changed files found in diff, nothing to analyze.")
-      end
-
       # Convert relative paths to absolute for Sources.find/1
       absolute_files = Enum.map(files, &Path.join(repo_root, &1))
+
+      # When --path is given, restrict diff results to files under that path.
+      absolute_files =
+        case opts[:path] do
+          nil ->
+            absolute_files
+
+          path ->
+            scope = path |> Path.expand() |> Path.absname()
+            Enum.filter(absolute_files, &String.starts_with?(&1, scope))
+        end
+
+      if absolute_files == [] do
+        Mix.shell().info("No changed files found in diff, nothing to analyze.")
+      end
 
       Keyword.put(opts_acc, :files_included, absolute_files)
     else

@@ -238,4 +238,28 @@ defmodule MetaCredo.CheckCase do
   def comment(text, meta_extra \\ []) do
     {:comment, [comment_kind: :line] ++ meta_extra, text}
   end
+
+  @doc "Builds a module-attribute assignment node (e.g. @moduledoc, @doc)."
+  def doc_attr(attr_name, content, meta_extra \\ []) do
+    {:assignment, [attribute_type: :module_attribute] ++ meta_extra,
+     [
+       {:variable, [scope: :module_attribute], "@#{attr_name}"},
+       {:literal, [subtype: :string], content}
+     ]}
+  end
+
+  @doc "Builds a doc attribute with string interpolation (simulates heredoc with \#{})."
+  def doc_attr_interpolated(attr_name, string_parts, meta_extra \\ []) do
+    parts =
+      Enum.map(string_parts, fn
+        part when is_binary(part) -> {:literal, [subtype: :string], part}
+        other -> other
+      end)
+
+    {:assignment, [attribute_type: :module_attribute] ++ meta_extra,
+     [
+       {:variable, [scope: :module_attribute], "@#{attr_name}"},
+       {:string_interpolation, [], parts}
+     ]}
+  end
 end

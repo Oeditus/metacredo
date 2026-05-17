@@ -84,6 +84,17 @@ defmodule MetaCredo.Check.SecurityTest do
       assert_no_issues(issues)
     end
 
+    test "skips URLs inside documentation strings" do
+      ast =
+        block([
+          doc_attr("moduledoc", "See https://api.example.com/docs for details."),
+          literal_string("safe", line: 5)
+        ])
+
+      issues = run_check(Security.HardcodedValue, ast: ast)
+      assert_no_issues(issues)
+    end
+
     test "ignores invalid IP-like strings" do
       issues =
         run_check(Security.HardcodedValue,
@@ -102,6 +113,75 @@ defmodule MetaCredo.Check.SecurityTest do
 
       issues = run_check(Security.HardcodedValue, ast: ast)
       assert_all_category(issues, :security)
+    end
+  end
+
+  # ── InlineJavascript ─────────────────────────────────────────────
+
+  describe "InlineJavascript" do
+    test "detects inline onclick handler in string literal" do
+      ast = literal_string("<button onclick=\"doThing()\">", line: 3)
+      issues = run_check(Security.InlineJavascript, ast: ast)
+      assert_issue(issues, message: ~r/XSS vulnerability/)
+    end
+
+    test "detects script tags in string literal" do
+      ast = literal_string("<script>alert(1)</script>", line: 5)
+      issues = run_check(Security.InlineJavascript, ast: ast)
+      assert_issue(issues, category: :security)
+    end
+
+    test "skips documentation strings mentioning html.raw" do
+      ast =
+        block([
+          doc_attr("moduledoc", "Use Phoenix.HTML.raw/1 only for trusted content."),
+          literal_string("safe content", line: 10)
+        ])
+
+      issues = run_check(Security.InlineJavascript, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "skips @doc strings mentioning javascript patterns" do
+      ast =
+        block([
+          doc_attr("doc", "Sanitizes <script> tags from user input."),
+          literal_string("hello", line: 5)
+        ])
+
+      issues = run_check(Security.InlineJavascript, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "skips interpolated doc strings mentioning html.raw" do
+      ast =
+        block([
+          doc_attr_interpolated("moduledoc", [
+            "Use ",
+            "Phoenix.HTML.raw/1 only for trusted content."
+          ]),
+          literal_string("safe", line: 10)
+        ])
+
+      issues = run_check(Security.InlineJavascript, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "still flags non-doc string with same dangerous pattern" do
+      ast =
+        block([
+          doc_attr("moduledoc", "Some unrelated docstring."),
+          literal_string("<img onerror=\"hack()\">", line: 10)
+        ])
+
+      issues = run_check(Security.InlineJavascript, ast: ast)
+      assert_issue(issues, message: ~r/XSS vulnerability/)
+    end
+
+    test "ignores safe string literals" do
+      ast = literal_string("hello world", line: 1)
+      issues = run_check(Security.InlineJavascript, ast: ast)
+      assert_no_issues(issues)
     end
   end
 
@@ -222,7 +302,7 @@ defmodule MetaCredo.Check.SecurityTest do
     end
   end
 
-  # ── SensitiveDataExposure ──────────────────────────────────────────
+  # ── SensitiveDataExposure ────────────────────────────────────────
 
   describe "SensitiveDataExposure" do
     test "detects logging of password variable" do

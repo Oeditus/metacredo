@@ -46,16 +46,19 @@ defmodule MetaCredo.Check.Security.SQLInjection do
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do
+    ast = SourceFile.ast(source_file)
+    doc_strings = CheckUtils.doc_string_contents(ast)
+
     {_, issues} =
-      source_file
-      |> SourceFile.ast()
-      |> AST.prewalk([], fn node, acc -> traverse(node, acc, source_file) end)
+      AST.prewalk(ast, [], fn node, acc ->
+        traverse(node, acc, source_file, doc_strings)
+      end)
 
     issues
   end
 
   # Detect binary operations that concatenate SQL strings
-  defp traverse({:binary_op, meta, [left, right]} = node, issues, source_file)
+  defp traverse({:binary_op, meta, [left, right]} = node, issues, source_file, _doc_strings)
        when is_list(meta) do
     operator = Keyword.get(meta, :operator)
 
@@ -67,7 +70,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
   end
 
   # Detect function calls to query functions with unsafe arguments
-  defp traverse({:function_call, meta, args} = node, issues, source_file)
+  defp traverse({:function_call, meta, args} = node, issues, source_file, _doc_strings)
        when is_list(meta) do
     func_name = Keyword.get(meta, :name, "")
 
@@ -91,9 +94,10 @@ defmodule MetaCredo.Check.Security.SQLInjection do
   end
 
   # Detect string interpolation patterns containing SQL
-  defp traverse({:literal, meta, value} = node, issues, source_file)
+  defp traverse({:literal, meta, value} = node, issues, source_file, doc_strings)
        when is_list(meta) and is_binary(value) do
     if Keyword.get(meta, :subtype) == :string and
+         not MapSet.member?(doc_strings, value) and
          contains_sql_keywords?(value) and has_interpolation_markers?(value) do
       line = Keyword.get(meta, :line)
 
@@ -112,7 +116,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
     end
   end
 
-  defp traverse(node, issues, _source_file), do: {node, issues}
+  defp traverse(node, issues, _source_file, _doc_strings), do: {node, issues}
 
   # --- Private Helpers ---
 

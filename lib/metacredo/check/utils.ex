@@ -97,4 +97,57 @@ defmodule MetaCredo.Check.Utils do
   end
 
   def module_name?(_), do: false
+
+  @doc """
+  Collects string content from documentation attributes (`@moduledoc`, `@doc`,
+  `@typedoc`).
+
+  Returns a `MapSet` of strings that appear as values of documentation module
+  attributes. Checks can use this to skip doc strings during literal analysis,
+  preventing false positives when documentation merely *mentions* patterns like
+  `Phoenix.HTML.raw/1` or URL examples.
+  """
+  @spec doc_string_contents(Metastatic.AST.meta_ast()) :: MapSet.t(String.t())
+  def doc_string_contents(ast) do
+    {_, doc_strings} =
+      Metastatic.AST.prewalk(ast, MapSet.new(), fn
+        # Plain literal doc attribute: @moduledoc "..."
+        {:assignment, meta, [{:variable, _, var_name}, {:literal, lit_meta, content}]} = node, acc
+        when var_name in ["@moduledoc", "@doc", "@typedoc"] and is_binary(content) ->
+          if Keyword.get(meta, :attribute_type) == :module_attribute and
+               Keyword.get(lit_meta, :subtype) == :string do
+            {node, MapSet.put(acc, content)}
+          else
+            {node, acc}
+          end
+
+        # Interpolated doc attribute: @moduledoc "...#{expr}..."
+        # Collect all literal fragments inside the :string_interpolation
+        {:assignment, meta, [{:variable, _, var_name}, {:string_interpolation, _, parts}]} = node,
+        acc
+        when var_name in ["@moduledoc", "@doc", "@typedoc"] and is_list(parts) ->
+          if Keyword.get(meta, :attribute_type) == :module_attribute do
+            new_acc =
+              Enum.reduce(parts, acc, fn
+                {:literal, lit_meta, content}, inner_acc
+                when is_binary(content) ->
+                  if Keyword.get(lit_meta, :subtype) == :string,
+                    do: MapSet.put(inner_acc, content),
+                    else: inner_acc
+
+                _, inner_acc ->
+                  inner_acc
+              end)
+
+            {node, new_acc}
+          else
+            {node, acc}
+          end
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    doc_strings
+  end
 end
