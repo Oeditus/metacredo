@@ -225,7 +225,7 @@ defmodule MetaCredo.Check.ReadabilityDesignTest do
   # ── Observability ──────────────────────────────────────────────────
 
   describe "Observability.MissingTelemetryInObanWorker" do
-    test "detects perform/1 without telemetry" do
+    test "detects perform/1 with callback_for Oban.Worker but no telemetry" do
       ast =
         container(
           :module,
@@ -238,14 +238,106 @@ defmodule MetaCredo.Check.ReadabilityDesignTest do
               [
                 call("do_work", [var("job")], line: 10)
               ],
-              line: 9
+              line: 9,
+              callback_for: "Oban.Worker"
             )
           ],
           line: 1
         )
 
       issues = run_check(Observability.MissingTelemetryInObanWorker, ast: ast)
-      assert_issue(issues, message: ~r/telemetry|oban/i)
+      assert_issue(issues, message: ~r/telemetry/i)
+    end
+
+    test "does not warn on run/0 without callback_for metadata" do
+      ast =
+        container(
+          :module,
+          "MyUtils",
+          [
+            function_def(
+              "run",
+              [],
+              [call("do_stuff", [], line: 5)],
+              line: 4
+            )
+          ],
+          line: 1
+        )
+
+      issues = run_check(Observability.MissingTelemetryInObanWorker, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "does not warn on perform/1 without callback_for" do
+      ast =
+        function_def(
+          "perform",
+          ["work"],
+          [call("process", [var("work")], line: 3)],
+          line: 2
+        )
+
+      issues = run_check(Observability.MissingTelemetryInObanWorker, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "warns with fallback_heuristic enabled" do
+      ast =
+        function_def(
+          "perform",
+          ["work"],
+          [call("process", [var("work")], line: 3)],
+          line: 2
+        )
+
+      issues =
+        run_check(Observability.MissingTelemetryInObanWorker,
+          ast: ast,
+          params: [fallback_heuristic: true]
+        )
+
+      assert_issue(issues, message: ~r/telemetry/i)
+    end
+
+    test "respects custom job_behaviours" do
+      ast =
+        function_def(
+          "execute",
+          ["args"],
+          [call("do_work", [var("args")], line: 5)],
+          line: 4,
+          callback_for: "MyApp.JobRunner"
+        )
+
+      # Default job_behaviours does not include MyApp.JobRunner
+      issues = run_check(Observability.MissingTelemetryInObanWorker, ast: ast)
+      assert_no_issues(issues)
+
+      # With custom job_behaviours including it
+      issues =
+        run_check(Observability.MissingTelemetryInObanWorker,
+          ast: ast,
+          params: [job_behaviours: ["MyApp.JobRunner"]]
+        )
+
+      assert_issue(issues, message: ~r/telemetry/i)
+    end
+
+    test "passes when telemetry is present in callback" do
+      ast =
+        function_def(
+          "perform",
+          ["job"],
+          [
+            call(":telemetry.span", [var("event"), var("meta"), var("fun")], line: 10)
+          ],
+          line: 9,
+          callback_for: "Oban.Worker"
+        )
+
+      issues = run_check(Observability.MissingTelemetryInObanWorker, ast: ast)
+      assert_no_issues(issues)
     end
   end
 
