@@ -13,6 +13,7 @@ defmodule Mix.Tasks.Metacredo do
       $ mix metacredo --format github
       $ mix metacredo --diff
       $ mix metacredo --diff --base origin/develop --head HEAD
+      $ mix metacredo --config path/to/.metacredo.exs
       $ mix metacredo explain MetaCredo.Check.Security.HardcodedValue
 
   ## Path
@@ -55,6 +56,7 @@ defmodule Mix.Tasks.Metacredo do
           only: :string,
           ignore: :string,
           format: :string,
+          config: :string,
           config_file: :string,
           files_included: :string,
           files_excluded: :string,
@@ -77,7 +79,7 @@ defmodule Mix.Tasks.Metacredo do
     execution_opts =
       []
       |> maybe_add(:strict, opts[:strict])
-      |> maybe_add(:config_file, opts[:config_file])
+      |> maybe_add(:config_file, opts[:config] || opts[:config_file])
       |> maybe_add(:only, parse_list(opts[:only]))
       |> maybe_add(:ignore, parse_list(opts[:ignore]))
       |> maybe_add(:files_included, parse_list(opts[:files_included]))
