@@ -124,16 +124,18 @@ defmodule MetaCredo.Check.Utils do
   preventing false positives when documentation merely *mentions* patterns like
   `Phoenix.HTML.raw/1` or URL examples.
   """
-  @spec doc_string_contents(Metastatic.AST.meta_ast()) :: MapSet.t(String.t())
+  @type doc_strings :: %{String.t() => true}
+
+  @spec doc_string_contents(Metastatic.AST.meta_ast()) :: doc_strings()
   def doc_string_contents(ast) do
     {_, doc_strings} =
-      Metastatic.AST.prewalk(ast, MapSet.new(), fn
+      Metastatic.AST.prewalk(ast, %{}, fn
         # Plain literal doc attribute: @moduledoc "..."
         {:assignment, meta, [{:variable, _, var_name}, {:literal, lit_meta, content}]} = node, acc
         when var_name in ["@moduledoc", "@doc", "@typedoc"] and is_binary(content) ->
           if Keyword.get(meta, :attribute_type) == :module_attribute and
                Keyword.get(lit_meta, :subtype) == :string do
-            {node, MapSet.put(acc, content)}
+            {node, Map.put(acc, content, true)}
           else
             {node, acc}
           end
@@ -149,7 +151,7 @@ defmodule MetaCredo.Check.Utils do
                 {:literal, lit_meta, content}, inner_acc
                 when is_binary(content) ->
                   if Keyword.get(lit_meta, :subtype) == :string,
-                    do: MapSet.put(inner_acc, content),
+                    do: Map.put(inner_acc, content, true),
                     else: inner_acc
 
                 _, inner_acc ->
@@ -167,4 +169,11 @@ defmodule MetaCredo.Check.Utils do
 
     doc_strings
   end
+
+  @doc """
+  Returns `true` when `value` appears in the doc-strings set returned by
+  `doc_string_contents/1`.
+  """
+  @spec doc_string?(doc_strings(), String.t()) :: boolean()
+  def doc_string?(doc_strings, value), do: is_map_key(doc_strings, value)
 end

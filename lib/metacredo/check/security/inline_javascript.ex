@@ -55,7 +55,7 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
   defp traverse({:literal, meta, content} = node, issues, source_file, doc_strings)
        when is_list(meta) and is_binary(content) do
     if Keyword.get(meta, :subtype) == :string and
-         not MapSet.member?(doc_strings, content) do
+         not CheckUtils.doc_string?(doc_strings, content) do
       content_lower = String.downcase(content)
 
       if Enum.any?(@dangerous_patterns, &String.contains?(content_lower, &1)) do

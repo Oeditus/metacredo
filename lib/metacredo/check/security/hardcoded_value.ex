@@ -56,7 +56,7 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
     {_, _, _, doc_strings} = ctx
 
     if Keyword.get(meta, :subtype) == :string and
-         not MapSet.member?(doc_strings, value) do
+         not CheckUtils.doc_string?(doc_strings, value) do
       {node, check_value(value, meta, issues, ctx)}
     else
       {node, issues}

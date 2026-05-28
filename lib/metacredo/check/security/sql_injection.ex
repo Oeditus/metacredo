@@ -97,7 +97,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
   defp traverse({:literal, meta, value} = node, issues, source_file, doc_strings)
        when is_list(meta) and is_binary(value) do
     if Keyword.get(meta, :subtype) == :string and
-         not MapSet.member?(doc_strings, value) and
+         not CheckUtils.doc_string?(doc_strings, value) and
          contains_sql_keywords?(value) and has_interpolation_markers?(value) do
       line = Keyword.get(meta, :line)
 
