@@ -66,7 +66,7 @@ defmodule MetaCredo.Check.Warning.MissingHandleAsync do
          source_file
        )
        when is_list(meta) do
-    func_name = to_string(Keyword.get(meta, :name, ""))
+    func_name = CheckUtils.safe_name(meta)
 
     if func_name == "handle_event" do
       # Check if body contains blocking calls without async delegation
@@ -96,7 +96,7 @@ defmodule MetaCredo.Check.Warning.MissingHandleAsync do
   defp traverse(node, acc, _source_file), do: {node, acc}
 
   defp contains_blocking?({:function_call, meta, _args}) when is_list(meta) do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
     Enum.any?(@blocking_indicators, &String.contains?(fn_lower, &1))
   end
@@ -112,7 +112,7 @@ defmodule MetaCredo.Check.Warning.MissingHandleAsync do
   defp contains_blocking?(_), do: false
 
   defp contains_async_delegation?({:function_call, meta, _args}) when is_list(meta) do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
     Enum.any?(@async_spawn_indicators, &String.contains?(fn_lower, &1))
   end

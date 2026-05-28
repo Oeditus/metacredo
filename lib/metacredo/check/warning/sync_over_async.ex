@@ -70,7 +70,7 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
          _source_file
        )
        when is_list(meta) do
-    func_name = to_string(Keyword.get(meta, :name, ""))
+    func_name = CheckUtils.safe_name(meta)
 
     if func_name in @async_callback_names do
       {node, {issues, func_name}}
@@ -86,7 +86,7 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
          source_file
        )
        when is_list(meta) and is_binary(callback_name) do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
 
     blocking? =

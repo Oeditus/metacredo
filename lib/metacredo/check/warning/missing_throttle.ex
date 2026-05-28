@@ -72,7 +72,7 @@ defmodule MetaCredo.Check.Warning.MissingThrottle do
          _source_file
        )
        when is_list(meta) do
-    func_name = to_string(Keyword.get(meta, :name, ""))
+    func_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(func_name)
 
     in_api? = Enum.any?(@api_context_indicators, &String.contains?(fn_lower, &1))
@@ -88,7 +88,7 @@ defmodule MetaCredo.Check.Warning.MissingThrottle do
          source_file
        )
        when is_list(meta) and is_binary(api_context) and not has_limiter do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
 
     if Enum.any?(@expensive_operations, &String.contains?(fn_lower, &1)) do
@@ -111,7 +111,7 @@ defmodule MetaCredo.Check.Warning.MissingThrottle do
   defp traverse(node, acc, _source_file), do: {node, acc}
 
   defp contains_rate_limiting?({:function_call, meta, _args}) when is_list(meta) do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
     Enum.any?(@rate_limit_indicators, &String.contains?(fn_lower, &1))
   end

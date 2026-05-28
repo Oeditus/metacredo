@@ -70,7 +70,7 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
          source_file
        )
        when is_list(meta) do
-    func_name = to_string(Keyword.get(meta, :name, ""))
+    func_name = CheckUtils.safe_name(meta)
 
     if unsupervised_task?(func_name) do
       line = Keyword.get(meta, :line)

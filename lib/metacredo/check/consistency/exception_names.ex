@@ -66,7 +66,7 @@ defmodule MetaCredo.Check.Consistency.ExceptionNames do
        )
        when is_list(meta) do
     container_type = Keyword.get(meta, :container_type)
-    name = to_string(Keyword.get(meta, :name, ""))
+    name = CheckUtils.safe_name(meta)
 
     if container_type == :class and suggests_error?(name) and not has_valid_suffix?(name) do
       line = Keyword.get(meta, :line)

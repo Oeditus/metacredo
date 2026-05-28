@@ -170,7 +170,8 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
 
   defp accesses_status_field?({:field_access, meta, _children}, status_fields) do
     field_name = Keyword.get(meta, :field) || Keyword.get(meta, :name)
-    field_name && to_string(field_name) in status_fields
+    is_simple = is_binary(field_name) or is_atom(field_name)
+    is_simple && to_string(field_name) in status_fields
   end
 
   defp accesses_status_field?({:variable, _meta, name}, status_fields) when is_binary(name) do
@@ -186,11 +187,12 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
 
   defp assigns_to_status_field?({:field_access, meta, _children}, status_fields) do
     field_name = Keyword.get(meta, :field) || Keyword.get(meta, :name)
-    field_name && to_string(field_name) in status_fields
+    is_simple = is_binary(field_name) or is_atom(field_name)
+    is_simple && to_string(field_name) in status_fields
   end
 
-  defp assigns_to_status_field?({:variable, _meta, name}, status_fields) do
-    to_string(name) in status_fields
+  defp assigns_to_status_field?({:variable, _meta, name}, status_fields) when is_binary(name) do
+    name in status_fields
   end
 
   defp assigns_to_status_field?(_target, _status_fields), do: false
@@ -239,7 +241,12 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
 
   defp extract_function_name(meta) when is_list(meta) do
     name = Keyword.get(meta, :name) || Keyword.get(meta, :function)
-    if name, do: to_string(name), else: nil
+
+    cond do
+      is_binary(name) -> name
+      is_atom(name) -> Atom.to_string(name)
+      true -> nil
+    end
   end
 
   defp extract_function_name(_), do: nil

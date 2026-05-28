@@ -108,7 +108,7 @@ defmodule MetaCredo.Check.Warning.InefficientFilter do
           Keyword.get(op_kind, :operation) in [:retrieve_all, :query]
 
       nil ->
-        func_name = to_string(Keyword.get(meta, :name, ""))
+        func_name = CheckUtils.safe_name(meta)
         fetch_all_function?(func_name)
     end
   end

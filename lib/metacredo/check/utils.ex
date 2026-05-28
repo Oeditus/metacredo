@@ -48,6 +48,23 @@ defmodule MetaCredo.Check.Utils do
   ]
 
   @doc """
+  Safely extracts a node name from AST metadata as a string.
+
+  Handles the case where `:name` is a list of AST tuples (e.g., quoted
+  expressions in typespec files) instead of a plain string or atom.
+  Returns `inspect(value)` for non-stringable values rather than crashing.
+  """
+  @spec safe_name(keyword(), term()) :: String.t()
+  def safe_name(meta, default \\ "") when is_list(meta) do
+    case Keyword.get(meta, :name, default) do
+      val when is_binary(val) -> val
+      val when is_atom(val) -> Atom.to_string(val)
+      val when is_number(val) -> to_string(val)
+      other -> inspect(other)
+    end
+  end
+
+  @doc """
   Returns true if the function name belongs to a well-known standard library
   module that should never be flagged as user-facing I/O, HTTP, auth,
   file operations, etc.

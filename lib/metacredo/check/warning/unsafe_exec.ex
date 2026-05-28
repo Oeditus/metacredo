@@ -55,7 +55,7 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
          source_file
        )
        when is_list(meta) and is_list(args) do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
 
     if exec_function?(fn_lower) and has_user_input_arg?(args) do

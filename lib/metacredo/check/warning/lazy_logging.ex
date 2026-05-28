@@ -42,7 +42,7 @@ defmodule MetaCredo.Check.Warning.LazyLogging do
          source_file
        )
        when is_list(meta) and is_list(args) do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
 
     if logger_call?(fn_name) and has_interpolation_arg?(args) do
       line = Keyword.get(meta, :line)

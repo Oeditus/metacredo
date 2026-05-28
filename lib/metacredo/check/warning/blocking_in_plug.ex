@@ -56,7 +56,7 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
          _source_file
        )
        when is_list(meta) do
-    func_name = to_string(Keyword.get(meta, :name, ""))
+    func_name = CheckUtils.safe_name(meta)
 
     if func_name in @middleware_functions do
       {node, {issues, func_name}}
@@ -72,7 +72,7 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
          source_file
        )
        when is_list(meta) and is_binary(middleware_fn) do
-    fn_name = to_string(Keyword.get(meta, :name, ""))
+    fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
 
     blocking? =
