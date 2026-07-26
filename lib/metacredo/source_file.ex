@@ -35,24 +35,34 @@ defmodule MetaCredo.SourceFile do
   """
   @spec parse(String.t(), String.t(), atom()) :: {:ok, t()} | {:error, term()}
   def parse(source, filename, language) do
-    with {:ok, adapter} <- Metastatic.adapter_for_language(language),
-         {:ok, native_ast} <- adapter.parse(source),
-         {:ok, meta_ast, metadata} <- adapter.to_meta(native_ast) do
-      doc = Document.new(meta_ast, language, metadata, source)
-      lines = to_lines(source)
+    source = ensure_utf8(source)
 
-      {:ok,
-       %__MODULE__{
-         document: doc,
-         filename: filename,
-         source: source,
-         language: language,
-         lines: lines,
-         status: :valid
-       }}
-    else
-      {:error, reason} ->
-        {:error, {:parse_failed, filename, reason}}
+    try do
+      with {:ok, adapter} <- Metastatic.adapter_for_language(language),
+           {:ok, native_ast} <- adapter.parse(source),
+           {:ok, meta_ast, metadata} <- adapter.to_meta(native_ast) do
+        doc = Document.new(meta_ast, language, metadata, source)
+        lines = to_lines(source)
+
+        {:ok,
+         %__MODULE__{
+           document: doc,
+           filename: filename,
+           source: source,
+           language: language,
+           lines: lines,
+           status: :valid
+         }}
+      else
+        {:error, reason} ->
+          {:error, {:parse_failed, filename, reason}}
+      end
+    rescue
+      e ->
+        {:error, {:parse_failed, filename, e}}
+    catch
+      kind, value ->
+        {:error, {:parse_failed, filename, {kind, value}}}
     end
   end
 
@@ -86,5 +96,19 @@ defmodule MetaCredo.SourceFile do
     |> String.split("\n")
     |> Enum.with_index(1)
     |> Enum.map(fn {line, idx} -> {idx, line} end)
+  end
+
+  defp ensure_utf8(source) when is_binary(source) do
+    if String.valid?(source) do
+      source
+    else
+      case :unicode.characters_to_binary(source, :latin1) do
+        converted when is_binary(converted) and byte_size(converted) > 0 ->
+          if String.valid?(converted), do: converted, else: String.replace_invalid(source)
+
+        _ ->
+          String.replace_invalid(source)
+      end
+    end
   end
 end

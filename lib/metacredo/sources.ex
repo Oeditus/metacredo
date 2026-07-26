@@ -96,11 +96,17 @@ defmodule MetaCredo.Sources do
     filenames
     |> Task.async_stream(
       fn filename ->
-        language = language_for(filename)
+        try do
+          language = language_for(filename)
 
-        case File.read(filename) do
-          {:ok, source} -> SourceFile.parse(source, filename, language)
-          {:error, reason} -> {:error, {:read_failed, filename, reason}}
+          case File.read(filename) do
+            {:ok, source} -> SourceFile.parse(source, filename, language)
+            {:error, reason} -> {:error, {:read_failed, filename, reason}}
+          end
+        rescue
+          e -> {:error, {:parse_failed, filename, e}}
+        catch
+          kind, value -> {:error, {:parse_failed, filename, {kind, value}}}
         end
       end,
       timeout: 30_000,
