@@ -87,6 +87,4 @@ defmodule MetaCredo.SourceFile do
     |> Enum.with_index(1)
     |> Enum.map(fn {line, idx} -> {idx, line} end)
   end
-
-  defp to_lines(_), do: []
 end

@@ -223,8 +223,6 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
     end)
   end
 
-  defp extract_branch_literals(_), do: MapSet.new()
-
   defp collect_literal_patterns({:literal, meta, value}, acc)
        when is_atom(value) or is_binary(value) do
     subtype = Keyword.get(meta, :subtype)
@@ -248,8 +246,6 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
       true -> nil
     end
   end
-
-  defp extract_function_name(_), do: nil
 
   defp matches_transition_verb?(func_name) do
     normalized = func_name |> to_string() |> String.downcase()

@@ -84,6 +84,4 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
         false
     end)
   end
-
-  defp has_doc_comment?(_), do: false
 end
