@@ -96,37 +96,26 @@ defmodule MetaCredo.Check.Design.HighComplexity do
 
   defp traverse(node, issues, _sf, _max), do: {node, issues}
 
+  # credo:disable-for-lines:20
   defp get_node_complexity(node, children) do
-    if Code.ensure_loaded?(Dllb) and Code.ensure_loaded?(Metastatic.Encoder) and
-         Application.get_env(:dllb, :enabled, false) do
-      case apply(Dllb, :query, ["SELECT * FROM _dllb_ping_"]) do
-        {:ok, _} ->
-          case apply(Metastatic.Encoder, :encode, [node]) do
-            {:ok, json} ->
-              escaped = String.replace(json, "'", "''")
+    with true <- Code.ensure_loaded?(Dllb),
+         true <- Code.ensure_loaded?(Metastatic.Encoder),
+         true <- Application.get_env(:dllb, :enabled, false),
+         {:ok, _} <- apply(Dllb, :query, ["SELECT * FROM _dllb_ping_"]),
+         {:ok, json} <- apply(Metastatic.Encoder, :encode, [node]) do
+      escaped = String.replace(json, "'", "''")
 
-              case apply(Dllb, :query, ["SELECT ast::complexity('#{escaped}') AS c"]) do
-                {:ok, %{data: [%{"c" => val} | _]}} when is_integer(val) ->
-                  val
-
-                _ ->
-                  1 + count_decision_points(children)
-              end
-
-            _ ->
-              1 + count_decision_points(children)
-          end
+      case apply(Dllb, :query, ["SELECT ast::complexity('#{escaped}') AS c"]) do
+        {:ok, %{data: [%{"c" => val} | _]}} when is_integer(val) ->
+          val
 
         _ ->
           1 + count_decision_points(children)
       end
     else
-      1 + count_decision_points(children)
+      _ ->
+        1 + count_decision_points(children)
     end
-  rescue
-    _ -> 1 + count_decision_points(children)
-  catch
-    _, _ -> 1 + count_decision_points(children)
   end
 
   # Count decision points (each adds a path through the code)
