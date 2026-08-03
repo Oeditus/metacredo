@@ -74,7 +74,7 @@ defmodule MetaCredo.Check.Design.HighComplexity do
   defp traverse({:function_def, meta, children} = node, issues, source_file, max_complexity)
        when is_list(meta) do
     name = Keyword.get(meta, :name, "anonymous")
-    complexity = 1 + count_decision_points(children)
+    complexity = get_node_complexity(node, children)
 
     if complexity > max_complexity do
       line = Keyword.get(meta, :line)
@@ -95,6 +95,39 @@ defmodule MetaCredo.Check.Design.HighComplexity do
   end
 
   defp traverse(node, issues, _sf, _max), do: {node, issues}
+
+  defp get_node_complexity(node, children) do
+    if Code.ensure_loaded?(Dllb) and Code.ensure_loaded?(Metastatic.Encoder) and
+         Application.get_env(:dllb, :enabled, false) do
+      case apply(Dllb, :query, ["SELECT * FROM _dllb_ping_"]) do
+        {:ok, _} ->
+          case apply(Metastatic.Encoder, :encode, [node]) do
+            {:ok, json} ->
+              escaped = String.replace(json, "'", "''")
+
+              case apply(Dllb, :query, ["SELECT ast::complexity('#{escaped}') AS c"]) do
+                {:ok, %{data: [%{"c" => val} | _]}} when is_integer(val) ->
+                  val
+
+                _ ->
+                  1 + count_decision_points(children)
+              end
+
+            _ ->
+              1 + count_decision_points(children)
+          end
+
+        _ ->
+          1 + count_decision_points(children)
+      end
+    else
+      1 + count_decision_points(children)
+    end
+  rescue
+    _ -> 1 + count_decision_points(children)
+  catch
+    _, _ -> 1 + count_decision_points(children)
+  end
 
   # Count decision points (each adds a path through the code)
   defp count_decision_points({:conditional, _meta, children}) when is_list(children) do
