@@ -68,7 +68,10 @@ defmodule MetaCredo.Execution do
     elapsed = System.monotonic_time(:millisecond) - start
 
     # Strip heavy document AST and text data from source_files to release memory post-execution
-    stripped_source_files = Enum.map(source_files, fn %SourceFile{} = sf -> %SourceFile{sf | document: nil, lines: [], source: nil} end)
+    stripped_source_files =
+      Enum.map(source_files, fn %SourceFile{} = sf ->
+        %SourceFile{sf | document: nil, lines: [], source: nil}
+      end)
 
     %{
       source_files: stripped_source_files,
