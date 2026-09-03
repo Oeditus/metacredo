@@ -17,7 +17,13 @@ defmodule MetaCredo.Sources do
     ".hrl" => :erlang,
     ".py" => :python,
     ".rb" => :ruby,
-    ".hs" => :haskell
+    ".hs" => :haskell,
+    ".cure" => :cure,
+    ".march" => :march,
+    ".js" => :javascript,
+    ".jsx" => :javascript,
+    ".ts" => :typescript,
+    ".tsx" => :typescript
   }
 
   @doc """
@@ -49,13 +55,17 @@ defmodule MetaCredo.Sources do
   @doc "Returns the language for a file based on its extension."
   @spec language_for(String.t()) :: atom() | nil
   def language_for(filename) do
-    ext = Path.extname(filename)
-    Map.get(@extension_map, ext)
+    case Metastatic.Languages.detect_language(filename) do
+      {:ok, lang} -> lang
+      {:error, _} -> Map.get(@extension_map, Path.extname(filename))
+    end
   end
 
   @doc "Returns the set of supported file extensions."
   @spec supported_extensions() :: [String.t()]
-  def supported_extensions, do: Map.keys(@extension_map)
+  def supported_extensions do
+    Metastatic.Languages.supported_extensions()
+  end
 
   # -- Private --
 
@@ -65,7 +75,7 @@ defmodule MetaCredo.Sources do
         [path]
 
       File.dir?(path) ->
-        extensions = Map.keys(@extension_map)
+        extensions = supported_extensions()
         patterns = Enum.map(extensions, &"#{path}/**/*#{&1}")
 
         patterns

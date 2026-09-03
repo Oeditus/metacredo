@@ -61,7 +61,7 @@ defmodule MetaCredo.MixProject do
       if System.get_env("LOCAL_METASTATIC") do
         {:metastatic, path: "../metastatic"}
       else
-        {:metastatic, "~> 0.21"}
+        {:metastatic, "~> 0.30"}
       end,
 
       # CLI output

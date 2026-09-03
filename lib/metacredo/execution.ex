@@ -149,37 +149,9 @@ defmodule MetaCredo.Execution do
   defp collect_disabled_lines(source_files) do
     source_files
     |> Enum.flat_map(fn sf ->
-      {_, disabled} =
-        AST.traverse(
-          SourceFile.ast(sf),
-          [],
-          fn
-            {:comment, _meta, text} = node, acc when is_binary(text) ->
-              case parse_disable_comment(text) do
-                {:ok, check_ref, :next_line} ->
-                  # The line after the comment
-                  line = AST.get_meta(node, :line)
-
-                  if line do
-                    {node, [{sf.filename, line + 1, check_ref} | acc]}
-                  else
-                    {node, acc}
-                  end
-
-                {:ok, check_ref, :this_file} ->
-                  {node, [{sf.filename, :all_lines, check_ref} | acc]}
-
-                :ignore ->
-                  {node, acc}
-              end
-
-            node, acc ->
-              {node, acc}
-          end,
-          fn node, acc -> {node, acc} end
-        )
-
-      disabled
+      ast_disabled = collect_disabled_from_ast(sf)
+      line_disabled = collect_disabled_from_lines(sf)
+      ast_disabled ++ line_disabled
     end)
     |> Enum.flat_map(fn
       {filename, :all_lines, check_ref} ->
@@ -190,6 +162,54 @@ defmodule MetaCredo.Execution do
         [entry]
     end)
     |> MapSet.new()
+  end
+
+  defp collect_disabled_from_ast(sf) do
+    {_, disabled} =
+      AST.traverse(
+        SourceFile.ast(sf),
+        [],
+        fn
+          {:comment, _meta, text} = node, acc when is_binary(text) ->
+            case parse_disable_comment(text) do
+              {:ok, check_ref, :next_line} ->
+                line = AST.get_meta(node, :line)
+
+                if line do
+                  {node, [{sf.filename, line + 1, check_ref} | acc]}
+                else
+                  {node, acc}
+                end
+
+              {:ok, check_ref, :this_file} ->
+                {node, [{sf.filename, :all_lines, check_ref} | acc]}
+
+              :ignore ->
+                {node, acc}
+            end
+
+          node, acc ->
+            {node, acc}
+        end,
+        fn node, acc -> {node, acc} end
+      )
+
+    disabled
+  end
+
+  defp collect_disabled_from_lines(%SourceFile{lines: lines, filename: filename}) do
+    Enum.flat_map(lines, fn {line_no, line_content} ->
+      case parse_disable_comment(line_content) do
+        {:ok, check_ref, :next_line} ->
+          [{filename, line_no + 1, check_ref}]
+
+        {:ok, check_ref, :this_file} ->
+          [{filename, :all_lines, check_ref}]
+
+        :ignore ->
+          []
+      end
+    end)
   end
 
   @disable_pattern ~r/metacredo:disable-for-(next-line|this-file)\s*(.*)/

@@ -64,7 +64,7 @@ $ mix metacredo.gen.config
 
 MetaCredo operates on the **MetaAST** representation provided by Metastatic.
 Source files are parsed into a language-agnostic AST using Metastatic's adapters
-(Elixir, Python, Ruby, Haskell, Erlang), and then checks pattern-match against
+(Elixir, Python, Ruby, Haskell, Erlang, Cure, March, JavaScript, TypeScript), and then checks pattern-match against
 the uniform `{type, keyword_meta, children}` node structure. This means every
 check is cross-language by default.
 
