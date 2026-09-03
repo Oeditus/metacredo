@@ -17,7 +17,7 @@ defmodule MetaCredo.CureSourcesTest do
       assert ".cure" in Sources.supported_extensions()
     end
 
-    @tag skip: (if not @cure_available, do: "Cure compiler is not available")
+    @tag skip: if(not @cure_available, do: "Cure compiler is not available")
     test "Sources.find discovers .cure files from directory" do
       tmp_dir = System.tmp_dir!()
       dir_path = Path.join(tmp_dir, "cure_test_#{System.unique_integer([:positive])}")
@@ -38,7 +38,7 @@ defmodule MetaCredo.CureSourcesTest do
   end
 
   describe "Cure source file parsing" do
-    @describetag skip: (if not @cure_available, do: "Cure compiler is not available")
+    @describetag skip: if(not @cure_available, do: "Cure compiler is not available")
 
     test "parses valid Cure source into SourceFile" do
       code = """
@@ -65,7 +65,7 @@ defmodule MetaCredo.CureSourcesTest do
   end
 
   describe "MetaCredo check execution on Cure sources" do
-    @describetag skip: (if not @cure_available, do: "Cure compiler is not available")
+    @describetag skip: if(not @cure_available, do: "Cure compiler is not available")
 
     test "detects hardcoded values (security check) in Cure source" do
       code = """
@@ -119,7 +119,7 @@ defmodule MetaCredo.CureSourcesTest do
   end
 
   describe "End-to-end MetaCredo execution for Cure sources" do
-    @describetag skip: (if not @cure_available, do: "Cure compiler is not available")
+    @describetag skip: if(not @cure_available, do: "Cure compiler is not available")
 
     test "runs full MetaCredo analysis suite on Cure project directory" do
       tmp_dir = System.tmp_dir!()
