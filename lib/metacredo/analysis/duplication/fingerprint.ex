@@ -211,7 +211,12 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
     {:loop, meta, Enum.map(children, &normalize_ast/1)}
   end
 
-  defp normalize_ast({:lambda, meta, [body]}) do
+  defp normalize_ast({:lambda, meta, body}) when is_list(body) do
+    normalized_meta = Keyword.put(meta, :params, :_) |> Keyword.put(:captures, :_)
+    {:lambda, normalized_meta, Enum.map(body, &normalize_ast/1)}
+  end
+
+  defp normalize_ast({:lambda, meta, body}) do
     normalized_meta = Keyword.put(meta, :params, :_) |> Keyword.put(:captures, :_)
     {:lambda, normalized_meta, [normalize_ast(body)]}
   end
@@ -241,6 +246,10 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
      ]}
   end
 
+  defp normalize_ast({:async_operation, meta, body}) when is_list(body) do
+    {:async_operation, meta, Enum.map(body, &normalize_ast/1)}
+  end
+
   defp normalize_ast({:async_operation, meta, [operation]}) do
     {:async_operation, meta, [normalize_ast(operation)]}
   end
@@ -260,8 +269,16 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
     {:container, normalized_meta, Enum.map(body, &normalize_ast/1)}
   end
 
-  defp normalize_ast({:function_def, meta, [body]}) do
+  defp normalize_ast({:function_def, meta, body}) when is_list(body) do
     # Preserve visibility and param count but normalize names
+    visibility = Keyword.get(meta, :visibility)
+    params = Keyword.get(meta, :params, [])
+    normalized_params = if is_list(params), do: Enum.map(params, fn _ -> :_ end), else: :_
+    normalized_meta = [name: :_, params: normalized_params, visibility: visibility]
+    {:function_def, normalized_meta, Enum.map(body, &normalize_ast/1)}
+  end
+
+  defp normalize_ast({:function_def, meta, body}) do
     visibility = Keyword.get(meta, :visibility)
     params = Keyword.get(meta, :params, [])
     normalized_params = if is_list(params), do: Enum.map(params, fn _ -> :_ end), else: :_
@@ -271,6 +288,10 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
 
   defp normalize_ast({:attribute_access, meta, [receiver]}) do
     {:attribute_access, Keyword.put(meta, :attribute, :_), [normalize_ast(receiver)]}
+  end
+
+  defp normalize_ast({:attribute_access, meta, children}) when is_list(children) do
+    {:attribute_access, Keyword.put(meta, :attribute, :_), Enum.map(children, &normalize_ast/1)}
   end
 
   defp normalize_ast({:augmented_assignment, meta, [target, value]}) do
