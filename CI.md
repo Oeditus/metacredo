@@ -25,7 +25,8 @@ issues that are unrelated to the current PR.
 1. `MetaCredo.Git.changed_files/2` runs
    `git diff --name-only --diff-filter=ACMR <base>...<head>`
 2. The result is filtered to supported extensions (`.ex`, `.exs`, `.erl`,
-   `.hrl`, `.py`, `.rb`, `.hs`)
+   `.hrl`, `.py`, `.pyw`, `.rb`, `.hs`, `.lhs`, `.cure`, `.march`, `.mch`,
+   `.js`, `.jsx`, `.mjs`, `.cjs`, `.ts`, `.tsx`)
 3. The file list is passed as `:files_included` to the execution pipeline
 4. Checks run only on those files
 
@@ -194,5 +195,5 @@ should handle this automatically.
 
 ---
 
-**Version:** MetaCredo 0.2.0
-**Last Updated:** May 2026
+**Version:** MetaCredo 0.4.4
+**Last Updated:** September 2026

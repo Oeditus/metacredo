@@ -9,6 +9,28 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
 
       {MetaCredo.Check.Security.SQLInjection, false}
 
+  ## Example Output
+
+      %{
+        configs: [
+          %{
+            name: "default",
+            files: %{
+              included: ["lib/", "src/", "web/"],
+              excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
+            },
+            checks: %{
+              enabled: [
+                # -- Consistency --
+                {MetaCredo.Check.Consistency.ExceptionNames, []},
+                ...
+              ],
+              disabled: []
+            }
+          }
+        ]
+      }
+
   ## Usage
 
       $ mix metacredo.gen.config

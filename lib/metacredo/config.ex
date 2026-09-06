@@ -2,26 +2,36 @@ defmodule MetaCredo.Config do
   @moduledoc """
   Parses and manages `.metacredo.exs` configuration files.
 
-  Configuration follows the same shape as `.credo.exs`:
+  Configuration follows a map structure similar to `.credo.exs`:
 
       %{
         configs: [
           %{
             name: "default",
             files: %{
-              included: ["lib/", "src/"],
-              excluded: ["deps/", "_build/"]
+              included: ["lib/", "src/", "web/"],
+              excluded: [
+                ~r"/_build/",
+                ~r"/deps/",
+                ~r"/node_modules/"
+              ]
             },
             checks: %{
               enabled: [
-                {MetaCredo.Check.Security.HardcodedValue, []},
-                {MetaCredo.Check.Warning.MissingErrorHandling, []}
+                {MetaCredo.Check.Security.HardcodedValue, [exclude_localhost: true]},
+                {MetaCredo.Check.Warning.MissingErrorHandling, []},
+                {MetaCredo.Check.Readability.MagicNumber, [ignored_numbers: [0, 1, -1, 2]]}
               ],
-              disabled: []
+              disabled: [
+                {MetaCredo.Check.Readability.ModuleDoc, []}
+              ]
             }
           }
         ]
       }
+
+  Configuration files are resolved in order from `.metacredo.exs` or `config/.metacredo.exs`.
+  Run `mix metacredo.gen.config` to generate a complete configuration file listing all checks.
   """
 
   require Logger
