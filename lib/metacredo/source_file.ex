@@ -37,8 +37,8 @@ defmodule MetaCredo.SourceFile do
   def parse(source, filename, language) do
     source = ensure_utf8(source)
 
-    try do
-      with {:ok, doc} <- Metastatic.Builder.from_source(source, language) do
+    case Metastatic.Builder.from_source(source, language) do
+      {:ok, doc} ->
         lines = to_lines(source)
 
         {:ok,
@@ -50,17 +50,16 @@ defmodule MetaCredo.SourceFile do
            lines: lines,
            status: :valid
          }}
-      else
-        {:error, reason} ->
-          {:error, {:parse_failed, filename, reason}}
-      end
-    rescue
-      e ->
-        {:error, {:parse_failed, filename, e}}
-    catch
-      kind, value ->
-        {:error, {:parse_failed, filename, {kind, value}}}
+
+      {:error, reason} ->
+        {:error, {:parse_failed, filename, reason}}
     end
+  rescue
+    e ->
+      {:error, {:parse_failed, filename, e}}
+  catch
+    kind, value ->
+      {:error, {:parse_failed, filename, {kind, value}}}
   end
 
   @doc "Returns the MetaAST for this source file."

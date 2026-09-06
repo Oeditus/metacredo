@@ -2,25 +2,26 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
-    param_defaults: [max_nesting: 2],
+    param_defaults: [max_nesting: 3],
     explanations: [
       check: """
-      Detects deeply nested function calls like `foo(bar(baz(x)))`.
+      Detects deeply nested function calls like `foo(bar(baz(qux(x))))`.
       Extract intermediate results into variables or use pipes for clarity.
       """,
       params: [
-        max_nesting: "Maximum allowed nesting depth of function calls (default: 2)"
+        max_nesting: "Maximum allowed nesting depth of function calls (default: 3)"
       ],
       examples: [
         elixir: [
           wrong: """
-          # Triple nesting -- must read inside-out to understand data flow
-          result = Enum.join(Enum.map(String.split(input, ","), &String.trim/1), " | ")
+          # Quadruple nesting -- must read inside-out to understand data flow
+          result = Enum.join(Enum.map(String.split(String.trim(input), ","), &String.trim/1), " | ")
           """,
           correct: """
           # Use pipes or intermediate variables to make the flow linear
           result =
             input
+            |> String.trim()
             |> String.split(",")
             |> Enum.map(&String.trim/1)
             |> Enum.join(" | ")
@@ -45,23 +46,28 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
 
   defp traverse({:function_call, meta, args} = node, issues, source_file, max_nesting)
        when is_list(meta) and is_list(args) do
-    depth = call_nesting_depth(args)
+    name = to_string(Keyword.get(meta, :name, "?"))
 
-    if depth > max_nesting do
-      name = Keyword.get(meta, :name, "?")
-      line = Keyword.get(meta, :line)
-
-      issue =
-        format_issue(source_file,
-          message:
-            "Nested function call depth #{depth} in '#{name}' (max: #{max_nesting}) -- extract into variables or use pipes",
-          trigger: to_string(name),
-          line_no: line
-        )
-
-      {node, [issue | issues]}
-    else
+    if name in ~W(assert refute test describe setup setup_all) do
       {node, issues}
+    else
+      depth = call_nesting_depth(args)
+
+      if depth > max_nesting do
+        line = Keyword.get(meta, :line)
+
+        issue =
+          format_issue(source_file,
+            message:
+              "Nested function call depth #{depth} in '#{name}' (max: #{max_nesting}) -- extract into variables or use pipes",
+            trigger: name,
+            line_no: line
+          )
+
+        {node, [issue | issues]}
+      else
+        {node, issues}
+      end
     end
   end
 

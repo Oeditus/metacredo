@@ -44,6 +44,8 @@ defmodule MetaCredo.Execution do
   def run(opts \\ []) do
     start = System.monotonic_time(:millisecond)
 
+    _ = Application.ensure_all_started(:metastatic)
+
     config = opts[:config] || Config.read(opts[:config_file])
 
     # Resolve file patterns

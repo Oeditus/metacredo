@@ -153,7 +153,7 @@ defmodule MetaCredo.Check.ReadabilityCredoTest do
       mid = call("bar", [inner])
       ast = call("foo", [mid], line: 7)
 
-      issues = run_check(Readability.NestedFunctionCalls, ast: ast)
+      issues = run_check(Readability.NestedFunctionCalls, ast: ast, params: [max_nesting: 2])
       assert_issue(issues, message: ~r/nested/i)
     end
 

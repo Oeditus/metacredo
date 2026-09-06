@@ -63,7 +63,13 @@ defmodule MetaCredo.Config do
       },
       checks: %{
         enabled: :all,
-        disabled: []
+        disabled: [
+          {MetaCredo.Check.Security.MissingAuthentication, []},
+          {MetaCredo.Check.Security.MissingCSRFProtection, []},
+          {MetaCredo.Check.Security.IncorrectAuthorization, []},
+          {MetaCredo.Check.Security.ImproperInputValidation, []},
+          {MetaCredo.Check.Warning.MissingErrorHandling, []}
+        ]
       }
     }
   end

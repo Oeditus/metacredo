@@ -79,10 +79,15 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
     send put_in update_in Process.send Agent.update
     Logger.info Logger.warn Logger.error Logger.debug Logger.warning
     IO.puts IO.write IO.inspect
+    assert refute test describe setup setup_all on_exit
   )
 
   defp side_effect_only?(fn_name) do
-    fn_name in @side_effect_fns or String.starts_with?(fn_name, "IO.") or
-      String.starts_with?(fn_name, "Logger.")
+    fn_name in @side_effect_fns or
+      String.starts_with?(fn_name, "IO.") or
+      String.starts_with?(fn_name, "Logger.") or
+      String.starts_with?(fn_name, "File.") or
+      String.starts_with?(fn_name, "Mix.") or
+      String.ends_with?(fn_name, "!")
   end
 end
