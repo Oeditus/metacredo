@@ -242,6 +242,38 @@ defmodule MetaCredo.Analysis.Complexity.LoC do
     end
   end
 
+  defp walk({:throw, _meta, [value]}, count) do
+    count = count + 1
+    walk_expr(value, count)
+  end
+
+  defp walk({:yield, _meta, [value]}, count) do
+    count = count + 1
+    walk_expr(value, count)
+  end
+
+  defp walk({:comment, _meta, _text}, count), do: count
+
+  defp walk({:bin_segment, _meta, [value]}, count) do
+    walk_expr(value, count)
+  end
+
+  defp walk({:pin, _meta, [inner]}, count) do
+    walk_expr(inner, count)
+  end
+
+  defp walk({:assert_type, _meta, [expr, _type]}, count) do
+    walk_expr(expr, count)
+  end
+
+  defp walk({:record_update, _meta, children}, count) when is_list(children) do
+    Enum.reduce(children, count, fn child, c -> walk_expr(child, c) end)
+  end
+
+  defp walk({:decorator, _meta, children}, count) when is_list(children) do
+    Enum.reduce(children, count, fn child, c -> walk_expr(child, c) end)
+  end
+
   # Expressions don't count
   defp walk(expr, count), do: walk_expr(expr, count)
 
@@ -271,6 +303,9 @@ defmodule MetaCredo.Analysis.Complexity.LoC do
     end)
   end
 
+  defp walk_expr({:bin_segment, _meta, [value]}, count), do: walk_expr(value, count)
+  defp walk_expr({:pin, _meta, [inner]}, count), do: walk_expr(inner, count)
+  defp walk_expr({:assert_type, _meta, [expr, _type]}, count), do: walk_expr(expr, count)
   defp walk_expr({:literal, _, _}, count), do: count
   defp walk_expr({:variable, _, _}, count), do: count
   defp walk_expr(nil, count), do: count

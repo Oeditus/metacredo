@@ -320,6 +320,40 @@ defmodule MetaCredo.Analysis.Complexity.Halstead do
         acc = walk(key, acc)
         walk(value, acc)
 
+      # Throw & Yield (3-tuple)
+      {:throw, _meta, [value]} ->
+        acc = %{acc | operators: ["throw" | acc.operators]}
+        walk(value, acc)
+
+      {:yield, _meta, [value]} ->
+        acc = %{acc | operators: ["yield" | acc.operators]}
+        walk(value, acc)
+
+      # Comments & Trivia
+      {:comment, _meta, _text} ->
+        acc
+
+      # Bin segment, pin, assert_type, record_update, decorator
+      {:bin_segment, _meta, [value]} ->
+        acc = %{acc | operators: ["bin_segment" | acc.operators]}
+        walk(value, acc)
+
+      {:pin, _meta, [inner]} ->
+        acc = %{acc | operators: ["^" | acc.operators]}
+        walk(inner, acc)
+
+      {:assert_type, _meta, [expr, _type]} ->
+        acc = %{acc | operators: ["assert_type" | acc.operators]}
+        walk(expr, acc)
+
+      {:record_update, _meta, children} when is_list(children) ->
+        acc = %{acc | operators: ["record_update" | acc.operators]}
+        Enum.reduce(children, acc, fn child, a -> walk(child, a) end)
+
+      {:decorator, _meta, children} when is_list(children) ->
+        acc = %{acc | operators: ["@" | acc.operators]}
+        Enum.reduce(children, acc, fn child, a -> walk(child, a) end)
+
       # Language-specific (3-tuple)
       {:language_specific, meta, native_ast} when is_list(meta) ->
         acc = %{acc | operators: ["native" | acc.operators]}

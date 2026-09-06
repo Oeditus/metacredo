@@ -307,6 +307,28 @@ defmodule Mix.Tasks.Metacredo do
       File.exists?("rebar.config") or File.exists?("rebar.lock") ->
         :erlang
 
+      File.exists?("pyproject.toml") or File.exists?("requirements.txt") or
+          File.exists?("setup.py") ->
+        :python
+
+      File.exists?("Gemfile") ->
+        :ruby
+
+      File.exists?("stack.yaml") or File.exists?("cabal.project") or File.exists?("package.yaml") ->
+        :haskell
+
+      File.exists?("tsconfig.json") ->
+        :typescript
+
+      File.exists?("package.json") ->
+        :javascript
+
+      File.exists?("cure.json") ->
+        :cure
+
+      File.exists?("march.json") ->
+        :march
+
       true ->
         detect_language_from_sources()
     end

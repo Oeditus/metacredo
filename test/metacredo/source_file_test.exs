@@ -13,6 +13,28 @@ defmodule MetaCredo.SourceFileTest do
       assert sf.status == :valid
     end
 
+    test "parses source code across available supported languages via Metastatic.Builder" do
+      sources = [
+        {"defmodule Test do\n  def hello, do: :world\nend\n", "test.ex", :elixir},
+        {"X = 5.", "test.erl", :erlang}
+      ]
+
+      for {src, filename, lang} <- sources do
+        assert {:ok, %SourceFile{} = sf} = SourceFile.parse(src, filename, lang)
+        assert sf.filename == filename
+        assert sf.language == lang
+        assert sf.status == :valid
+      end
+    end
+
+    test "Sources.language_for/1 uses Metastatic.Languages single source of truth" do
+      assert Sources.language_for("app.py") == :python
+      assert Sources.language_for("main.ts") == :typescript
+      assert Sources.language_for("script.rb") == :ruby
+      assert Sources.language_for("main.cure") == :cure
+      assert Sources.language_for("lib.march") == :march
+    end
+
     test "handles Non-UTF-8 (Latin-1) encoded source code without crashing" do
       # <<241>> is byte 'ñ' in Latin-1 / ISO-8859-1 encoding
       non_utf8_source =

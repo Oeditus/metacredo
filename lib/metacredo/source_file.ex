@@ -38,10 +38,7 @@ defmodule MetaCredo.SourceFile do
     source = ensure_utf8(source)
 
     try do
-      with {:ok, adapter} <- Metastatic.adapter_for_language(language),
-           {:ok, native_ast} <- adapter.parse(source),
-           {:ok, meta_ast, metadata} <- adapter.to_meta(native_ast) do
-        doc = Document.new(meta_ast, language, metadata, source)
+      with {:ok, doc} <- Metastatic.Builder.from_source(source, language) do
         lines = to_lines(source)
 
         {:ok,

@@ -10,22 +10,6 @@ defmodule MetaCredo.Sources do
 
   require Logger
 
-  @extension_map %{
-    ".ex" => :elixir,
-    ".exs" => :elixir,
-    ".erl" => :erlang,
-    ".hrl" => :erlang,
-    ".py" => :python,
-    ".rb" => :ruby,
-    ".hs" => :haskell,
-    ".cure" => :cure,
-    ".march" => :march,
-    ".js" => :javascript,
-    ".jsx" => :javascript,
-    ".ts" => :typescript,
-    ".tsx" => :typescript
-  }
-
   @doc """
   Finds and parses source files matching the given configuration.
 
@@ -57,7 +41,7 @@ defmodule MetaCredo.Sources do
   def language_for(filename) do
     case Metastatic.Languages.detect_language(filename) do
       {:ok, lang} -> lang
-      {:error, _} -> Map.get(@extension_map, Path.extname(filename))
+      {:error, _} -> nil
     end
   end
 
