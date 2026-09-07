@@ -107,6 +107,42 @@ defmodule MetaCredo.Check.ReadabilityCredoTest do
       assert_issue(issues, trigger: "NoDocs", category: :readability)
     end
 
+    test "skips .exs files by default" do
+      ast =
+        container(
+          :module,
+          "TestScriptModule",
+          [
+            function_def("foo", [], [literal_int(1)])
+          ],
+          line: 1
+        )
+
+      issues = run_check(Readability.ModuleDoc, ast: ast, filename: "test/test_helper.exs")
+      assert_no_issues(issues)
+    end
+
+    test "flags .exs files when check_exs: true" do
+      ast =
+        container(
+          :module,
+          "TestScriptModule",
+          [
+            function_def("foo", [], [literal_int(1)])
+          ],
+          line: 1
+        )
+
+      issues =
+        run_check(Readability.ModuleDoc,
+          ast: ast,
+          filename: "test/test_helper.exs",
+          params: [check_exs: true]
+        )
+
+      assert_issue(issues, trigger: "TestScriptModule")
+    end
+
     test "passes for module with doc comment" do
       doc = {:comment, [comment_kind: :doc], "Module documentation"}
 
@@ -116,6 +152,52 @@ defmodule MetaCredo.Check.ReadabilityCredoTest do
           "Documented",
           [
             doc,
+            function_def("foo", [], [literal_int(1)])
+          ],
+          line: 1
+        )
+
+      issues = run_check(Readability.ModuleDoc, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "passes for module with @moduledoc string attribute" do
+      moduledoc_attr =
+        {:assignment, [attribute_type: :module_attribute, line: 2],
+         [
+           {:variable, [scope: :module_attribute], "@moduledoc"},
+           {:literal, [subtype: :string], "Main module docs"}
+         ]}
+
+      ast =
+        container(
+          :module,
+          "Dllb",
+          [
+            moduledoc_attr,
+            function_def("foo", [], [literal_int(1)])
+          ],
+          line: 1
+        )
+
+      issues = run_check(Readability.ModuleDoc, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "passes for module with @moduledoc false attribute" do
+      moduledoc_attr =
+        {:assignment, [attribute_type: :module_attribute, line: 2],
+         [
+           {:variable, [scope: :module_attribute], "@moduledoc"},
+           {:literal, [subtype: :boolean], false}
+         ]}
+
+      ast =
+        container(
+          :module,
+          "DllbHidden",
+          [
+            moduledoc_attr,
             function_def("foo", [], [literal_int(1)])
           ],
           line: 1

@@ -62,7 +62,9 @@ defmodule Mix.Tasks.Metacredo do
           files_excluded: :string,
           diff: :boolean,
           base: :string,
-          head: :string
+          head: :string,
+          no_db: :boolean,
+          no_user: :boolean
         ]
       )
 
@@ -84,6 +86,8 @@ defmodule Mix.Tasks.Metacredo do
       |> maybe_add(:ignore, parse_list(opts[:ignore]))
       |> maybe_add(:files_included, parse_list(opts[:files_included]))
       |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
+      |> maybe_add(:no_db, opts[:no_db])
+      |> maybe_add(:no_user, opts[:no_user])
       |> maybe_add_path(opts)
       |> maybe_add_diff_files(opts)
 

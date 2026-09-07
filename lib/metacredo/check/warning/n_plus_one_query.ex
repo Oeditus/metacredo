@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.NPlusOneQuery do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    tags: [:db],
     explanations: [
       check: """
       Detects database operations (e.g. `Repo.get`, `Repo.one`) called inside

@@ -2,7 +2,8 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
   use MetaCredo.Check,
     category: :security,
     base_priority: :high,
-    param_defaults: [exclude_localhost: true, exclude_local_ips: true],
+    tags: [:security],
+    param_defaults: [exclude_localhost: true, exclude_local_ips: true, check_exs: false],
     explanations: [
       check: """
       Detects hardcoded URLs, IP addresses, and other sensitive values in
@@ -13,7 +14,8 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
       """,
       params: [
         exclude_localhost: "Skip localhost/127.0.0.1 URLs (default: true)",
-        exclude_local_ips: "Skip private IP ranges (default: true)"
+        exclude_local_ips: "Skip private IP ranges (default: true)",
+        check_exs: "Check hardcoded values in .exs script/config files (default: false)"
       ],
       examples: [
         elixir: [
@@ -39,16 +41,22 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
 
   @impl true
   def run(%SourceFile{} = source_file, params) do
-    exclude_localhost = params_get(params, :exclude_localhost)
-    exclude_local_ips = params_get(params, :exclude_local_ips)
-    ast = SourceFile.ast(source_file)
-    doc_strings = CheckUtils.doc_string_contents(ast)
-    ctx = {source_file, exclude_localhost, exclude_local_ips, doc_strings}
+    check_exs = params_get(params, :check_exs)
 
-    {_, issues} =
-      AST.prewalk(ast, [], fn node, acc -> traverse(node, acc, ctx) end)
+    if not check_exs and String.ends_with?(source_file.filename, ".exs") do
+      []
+    else
+      exclude_localhost = params_get(params, :exclude_localhost)
+      exclude_local_ips = params_get(params, :exclude_local_ips)
+      ast = SourceFile.ast(source_file)
+      doc_strings = CheckUtils.doc_string_contents(ast)
+      ctx = {source_file, exclude_localhost, exclude_local_ips, doc_strings}
 
-    issues
+      {_, issues} =
+        AST.prewalk(ast, [], fn node, acc -> traverse(node, acc, ctx) end)
+
+      issues
+    end
   end
 
   defp traverse({:literal, meta, value} = node, issues, ctx)

@@ -38,6 +38,8 @@ defmodule MetaCredo.Config do
 
   @type config :: %{
           name: String.t(),
+          no_db: boolean(),
+          no_user: boolean(),
           files: %{included: [String.t()], excluded: [String.t() | Regex.t()]},
           checks: %{
             enabled: [{module(), Keyword.t()}] | :all,
@@ -62,6 +64,8 @@ defmodule MetaCredo.Config do
   def default do
     %{
       name: "default",
+      no_db: false,
+      no_user: false,
       files: %{
         included: ["lib/", "src/", "web/"],
         excluded: [
@@ -73,22 +77,40 @@ defmodule MetaCredo.Config do
       },
       checks: %{
         enabled: :all,
-        disabled: [
-          {MetaCredo.Check.Security.MissingAuthentication, []},
-          {MetaCredo.Check.Security.MissingCSRFProtection, []},
-          {MetaCredo.Check.Security.IncorrectAuthorization, []},
-          {MetaCredo.Check.Security.ImproperInputValidation, []},
-          {MetaCredo.Check.Warning.MissingErrorHandling, []}
-        ]
+        disabled: Enum.map(default_disabled_checks(), &{&1, []})
       }
     }
   end
 
+  @doc "Returns default disabled checks."
+  @spec default_disabled_checks() :: [module()]
+  def default_disabled_checks do
+    [
+      MetaCredo.Check.Security.MissingAuthentication,
+      MetaCredo.Check.Security.MissingCSRFProtection,
+      MetaCredo.Check.Security.IncorrectAuthorization,
+      MetaCredo.Check.Security.ImproperInputValidation,
+      MetaCredo.Check.Warning.MissingErrorHandling,
+      MetaCredo.Check.Warning.UnusedOperation
+    ]
+  end
+
   @doc "Returns the list of enabled checks from config."
   @spec enabled_checks(config()) :: [{module(), Keyword.t()}]
-  def enabled_checks(%{checks: %{enabled: :all}}) do
+  def enabled_checks(%{checks: %{enabled: :all, disabled: disabled}}) do
+    disabled_modules = Enum.map(disabled, fn {mod, _} -> mod end)
+
     all_checks()
     |> Enum.map(fn mod -> {mod, []} end)
+    |> Enum.reject(fn {mod, _} -> mod in disabled_modules end)
+  end
+
+  def enabled_checks(%{checks: %{enabled: :all}}) do
+    disabled_modules = default_disabled_checks()
+
+    all_checks()
+    |> Enum.map(fn mod -> {mod, []} end)
+    |> Enum.reject(fn {mod, _} -> mod in disabled_modules end)
   end
 
   def enabled_checks(%{checks: %{enabled: enabled, disabled: disabled}}) do
@@ -106,10 +128,20 @@ defmodule MetaCredo.Config do
   @spec default_config_path() :: String.t()
   def default_config_path, do: ".metacredo.exs"
 
+  @doc "Returns the path to the global user configuration file."
+  @spec global_config_path() :: String.t()
+  def global_config_path do
+    config_dir =
+      System.get_env("XDG_CONFIG_HOME") ||
+        Path.join(System.user_home!(), ".config")
+
+    Path.join([config_dir, "metacredo", ".metacredo.exs"])
+  end
+
   # -- Private --
 
   defp find_config_file do
-    [".metacredo.exs", "config/.metacredo.exs"]
+    [".metacredo.exs", "config/.metacredo.exs", global_config_path()]
     |> Enum.find(&File.exists?/1)
   end
 
@@ -133,10 +165,14 @@ defmodule MetaCredo.Config do
   end
 
   defp normalize_config(config) do
+    switches = Map.get(config, :switches, %{})
+
     %{
       name: Map.get(config, :name, "default"),
       files: Map.get(config, :files, default().files),
-      checks: Map.get(config, :checks, default().checks)
+      checks: Map.get(config, :checks, default().checks),
+      no_db: Map.get(config, :no_db, Map.get(switches, :no_db, false)),
+      no_user: Map.get(config, :no_user, Map.get(switches, :no_user, false))
     }
   end
 

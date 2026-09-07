@@ -56,6 +56,27 @@ defmodule MetaCredo.Check.SecurityTest do
       end
     end
 
+    test "skips .exs files by default" do
+      issues =
+        run_check(Security.HardcodedValue,
+          ast: literal_string("https://api.example.com/v1", line: 5),
+          filename: "config/config.exs"
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "flags .exs files when check_exs: true" do
+      issues =
+        run_check(Security.HardcodedValue,
+          ast: literal_string("https://api.example.com/v1", line: 5),
+          filename: "config/config.exs",
+          params: [check_exs: true]
+        )
+
+      assert_issue_count(issues, 1)
+    end
+
     test "flags private IPs when exclude_local_ips: false" do
       issues =
         run_check(Security.HardcodedValue,

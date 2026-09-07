@@ -25,6 +25,17 @@ defmodule MetaCredo.ConfigTest do
                _ -> false
              end)
     end
+
+    test "default includes disabled checks for error handling and unused operations" do
+      disabled = Config.default_disabled_checks()
+      assert MetaCredo.Check.Warning.MissingErrorHandling in disabled
+      assert MetaCredo.Check.Warning.UnusedOperation in disabled
+    end
+
+    test "global_config_path returns expected path under user config directory" do
+      path = Config.global_config_path()
+      assert String.ends_with?(path, ".config/metacredo/.metacredo.exs") or String.contains?(path, "metacredo/.metacredo.exs")
+    end
   end
 
   describe "read/1" do
@@ -42,6 +53,8 @@ defmodule MetaCredo.ConfigTest do
           configs: [
             %{
               name: "test",
+              no_db: true,
+              no_user: true,
               files: %{included: ["src/"], excluded: []},
               checks: %{enabled: :all, disabled: []}
             }
@@ -51,6 +64,8 @@ defmodule MetaCredo.ConfigTest do
 
         config = Config.read(path)
         assert config.name == "test"
+        assert config.no_db == true
+        assert config.no_user == true
         assert config.files.included == ["src/"]
       after
         File.rm(path)
@@ -72,11 +87,12 @@ defmodule MetaCredo.ConfigTest do
   end
 
   describe "enabled_checks/1" do
-    test "returns all checks when enabled is :all" do
-      config = %{checks: %{enabled: :all, disabled: []}}
-      # Returns whatever is registered; may be empty in test env
+    test "returns all checks except default_disabled when enabled is :all" do
+      config = Config.default()
       checks = Config.enabled_checks(config)
-      assert is_list(checks)
+      modules = Enum.map(checks, &elem(&1, 0))
+      refute MetaCredo.Check.Warning.MissingErrorHandling in modules
+      refute MetaCredo.Check.Warning.UnusedOperation in modules
     end
 
     test "filters out disabled checks" do

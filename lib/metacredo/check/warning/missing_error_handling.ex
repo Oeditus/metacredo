@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.MissingErrorHandling do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    tags: [:returns],
     explanations: [
       check: """
       Detects pattern matches on success tuples (`{:ok, value} = expr`)

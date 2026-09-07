@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
   use MetaCredo.Check,
     category: :security,
     base_priority: :higher,
+    tags: [:db, :security],
     explanations: [
       check: """
       Detects potential SQL injection vulnerabilities (CWE-89).

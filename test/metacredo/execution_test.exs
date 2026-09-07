@@ -115,4 +115,48 @@ defmodule MetaCredo.ExecutionTest do
       assert is_list(report.issues)
     end
   end
+
+  describe "umbrella switches (no_db, no_user)" do
+    test "no_db option excludes DB checks from checks_run" do
+      report =
+        Execution.run(
+          no_db: true,
+          files_included: []
+        )
+
+      refute MetaCredo.Check.Warning.NPlusOneQuery in report.checks_run
+      refute MetaCredo.Check.Security.SQLInjection in report.checks_run
+      refute MetaCredo.Check.Warning.MissingPreload in report.checks_run
+    end
+
+    test "no_user option excludes user input checks from checks_run" do
+      report =
+        Execution.run(
+          no_user: true,
+          files_included: []
+        )
+
+      refute MetaCredo.Check.Security.ImproperInputValidation in report.checks_run
+      refute MetaCredo.Check.Security.XSSVulnerability in report.checks_run
+      refute MetaCredo.Check.Consistency.ParameterPatternMatching in report.checks_run
+    end
+
+    test "no_db and no_user flags in config map exclude respective checks" do
+      report =
+        Execution.run(
+          config: %{
+            name: "test",
+            no_db: true,
+            no_user: true,
+            files: %{included: [], excluded: []},
+            checks: %{enabled: :all, disabled: []}
+          },
+          files_included: []
+        )
+
+      refute MetaCredo.Check.Warning.NPlusOneQuery in report.checks_run
+      refute MetaCredo.Check.Security.SQLInjection in report.checks_run
+      refute MetaCredo.Check.Security.ImproperInputValidation in report.checks_run
+    end
+  end
 end

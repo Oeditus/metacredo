@@ -106,6 +106,23 @@ defmodule MetaCredo.Execution do
   defp resolve_checks(config, opts) do
     checks = Config.enabled_checks(config)
 
+    no_db? = opts[:no_db] || Map.get(config, :no_db, false)
+    no_user? = opts[:no_user] || Map.get(config, :no_user, false)
+
+    checks =
+      if no_db? do
+        Enum.reject(checks, fn {mod, _} -> db_check?(mod) end)
+      else
+        checks
+      end
+
+    checks =
+      if no_user? do
+        Enum.reject(checks, fn {mod, _} -> user_check?(mod) end)
+      else
+        checks
+      end
+
     checks =
       case opts[:only] do
         nil -> checks
@@ -118,6 +135,33 @@ defmodule MetaCredo.Execution do
       [] -> checks
       categories -> Enum.reject(checks, fn {mod, _} -> mod.category() in categories end)
     end
+  end
+
+  defp db_check?(mod) do
+    tags = if function_exported?(mod, :tags, 0), do: mod.tags(), else: []
+
+    :db in tags or
+      String.contains?(to_string(mod), ["SQLInjection", "NPlusOneQuery", "MissingPreload", "Database"])
+  end
+
+  defp user_check?(mod) do
+    tags = if function_exported?(mod, :tags, 0), do: mod.tags(), else: []
+
+    :user in tags or :user_input in tags or
+      String.contains?(to_string(mod), [
+        "InputValidation",
+        "XSS",
+        "CSRF",
+        "PathTraversal",
+        "DirectObjectReference",
+        "FileUpload",
+        "SSRF",
+        "SensitiveData",
+        "InlineJavascript",
+        "Authentication",
+        "Authorization",
+        "ParameterPatternMatching"
+      ])
   end
 
   defp run_checks_on_file(%SourceFile{} = source_file, checks) do

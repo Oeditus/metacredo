@@ -2,11 +2,15 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    param_defaults: [check_exs: false],
     explanations: [
       check: """
       Detects modules without documentation. Every module should have
       a `@moduledoc` describing its purpose.
       """,
+      params: [
+        check_exs: "Check moduledoc in .exs script/config files (default: false)"
+      ],
       examples: [
         elixir: [
           wrong: """
@@ -42,15 +46,21 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
     ]
 
   @impl true
-  def run(%SourceFile{} = source_file, _params) do
-    {_, issues} =
-      source_file
-      |> SourceFile.ast()
-      |> AST.prewalk([], fn node, acc ->
-        traverse(node, acc, source_file)
-      end)
+  def run(%SourceFile{} = source_file, params) do
+    check_exs = params_get(params, :check_exs)
 
-    issues
+    if not check_exs and String.ends_with?(source_file.filename, ".exs") do
+      []
+    else
+      {_, issues} =
+        source_file
+        |> SourceFile.ast()
+        |> AST.prewalk([], fn node, acc ->
+          traverse(node, acc, source_file)
+        end)
+
+      issues
+    end
   end
 
   defp traverse({:container, meta, children} = node, issues, source_file)
@@ -76,12 +86,25 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
   defp traverse(node, issues, _sf), do: {node, issues}
 
   defp has_doc_comment?(children) when is_list(children) do
-    Enum.any?(children, fn
-      {:comment, meta, _text} when is_list(meta) ->
-        Keyword.get(meta, :comment_kind) == :doc
-
-      _ ->
-        false
-    end)
+    Enum.any?(children, &is_doc_node?/1)
   end
+
+  defp is_doc_node?({:assignment, meta, [{:variable, _, var_name} | _]}) when is_list(meta) do
+    var_name in ["@moduledoc", ":moduledoc", "moduledoc"] or
+      (Keyword.get(meta, :attribute_type) == :module_attribute and var_name in ["@moduledoc", "moduledoc"])
+  end
+
+  defp is_doc_node?({:attribute, meta, [attr_name | _]}) when is_list(meta) do
+    to_string(attr_name) in ["@moduledoc", "moduledoc", ":moduledoc"]
+  end
+
+  defp is_doc_node?({:comment, meta, _text}) when is_list(meta) do
+    Keyword.get(meta, :comment_kind) == :doc or Keyword.get(meta, :doc) == true
+  end
+
+  defp is_doc_node?({:block, _meta, statements}) when is_list(statements) do
+    Enum.any?(statements, &is_doc_node?/1)
+  end
+
+  defp is_doc_node?(_node), do: false
 end

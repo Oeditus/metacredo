@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :normal,
+    tags: [:returns],
     explanations: [
       check: """
       Detects function call results that are unused. A function call appearing
