@@ -50,14 +50,19 @@ $ mix metacredo --strict
 # Filter by category
 $ mix metacredo --only security,warning
 
+# Umbrella switches to turn off DB or user input checks
+$ mix metacredo --no-db
+$ mix metacredo --no-user
+
 # JSON output
 $ mix metacredo --format json
 
 # Explain a specific check
 $ mix metacredo explain MetaCredo.Check.Security.HardcodedValue
 
-# Generate default configuration
+# Generate default configuration (local or global)
 $ mix metacredo.gen.config
+$ mix metacredo.gen.config --global
 ```
 
 ## How It Works
@@ -163,15 +168,23 @@ check is cross-language by default.
 - `MissingTelemetryForExternalHttp`—HTTP client calls without telemetry wrapper
 - `TelemetryInRecursiveFunction`—Telemetry inside recursive functions (anti-pattern)
 
-## Configuration
-
-Generate a default `.metacredo.exs` file by running:
+Generate a default `.metacredo.exs` file in your project directory by running:
 
 ```sh
 $ mix metacredo.gen.config
 ```
 
-MetaCredo checks for `.metacredo.exs` in the current directory or inside `config/.metacredo.exs`.
+Or generate a user-wide global configuration in `~/.config/metacredo/.metacredo.exs` (or `$XDG_CONFIG_HOME/metacredo/.metacredo.exs`):
+
+```sh
+$ mix metacredo.gen.config --global
+```
+
+MetaCredo resolves configuration files in order:
+1. Local `.metacredo.exs` in the project root
+2. `config/.metacredo.exs`
+3. Global user configuration (`~/.config/metacredo/.metacredo.exs`)
+4. Internal defaults
 
 ### Typical `.metacredo.exs` Example
 
@@ -185,6 +198,8 @@ Here is an example of a typical `.metacredo.exs` configuration file:
   configs: [
     %{
       name: "default",
+      no_db: false,
+      no_user: false,
       files: %{
         included: ["lib/", "src/", "web/"],
         excluded: [

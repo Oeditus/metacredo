@@ -1,6 +1,27 @@
 # Changelog
 
-## v0.4.4
+## v0.6.0
+
+### Enhancements & Fine-Grained Tuning
+- **Umbrella Switches (`no_db` and `no_user`)**:
+  - Added CLI flags `--no-db` / `--no_db` and `--no-user` / `--no_user` to `mix metacredo`.
+  - Added support for `no_db: true` and `no_user: true` (as well as `switches: %{...}`) in `.metacredo.exs`.
+  - `--no-db` excludes all database-related checks (`NPlusOneQuery`, `SQLInjection`, `MissingPreload`, and `:db` tagged checks).
+  - `--no-user` excludes all user input-related checks (`ImproperInputValidation`, `XSSVulnerability`, `MissingCSRFProtection`, `PathTraversal`, `InsecureDirectObjectReference`, `UnrestrictedFileUpload`, `SSRFVulnerability`, `SensitiveDataExposure`, `InlineJavascript`, `MissingAuthentication`, `MissingAuthorization`, `IncorrectAuthorization`, `ParameterPatternMatching`, and `:user_input` / `:user` tagged checks).
+
+- **Default-Off & Opt-In Checks**:
+  - **Hardcoded values in `.exs` files**: `MetaCredo.Check.Security.HardcodedValue` defaults `check_exs: false`, skipping `.exs` script/config files unless opted in with `check_exs: true`.
+  - **Module documentation in `.exs` files**: `MetaCredo.Check.Readability.ModuleDoc` defaults `check_exs: false`, skipping `.exs` script/config files unless opted in with `check_exs: true`.
+  - **Return-value checks**: `MetaCredo.Check.Warning.UnusedOperation` and `MetaCredo.Check.Warning.MissingErrorHandling` are disabled by default in `Config.default_disabled_checks/0` and require explicit opt-in in `.metacredo.exs`.
+
+- **Global User Configuration (`--global` flag)**:
+  - Added `mix metacredo.gen.config --global` to write configuration to the user's global config directory (e.g. `~/.config/metacredo/.metacredo.exs` or `$XDG_CONFIG_HOME/metacredo/.metacredo.exs`).
+  - Added automatic fallback to global configuration file in `MetaCredo.Config.read/1` when no local configuration exists.
+
+### Bug Fixes
+- **ModuleDoc False-Positives**: Resolved false-positive "Module has no documentation" warnings for Elixir modules using `@moduledoc "..."` string attributes or `@moduledoc false`. Added AST assignment node inspection for `@moduledoc` attributes.
+
+## v0.5.0
 
 ### Enhancements & Maintenance
 - **Dependency Upgrade**: Updated `:metastatic` dependency constraint to `~> 0.30`.
