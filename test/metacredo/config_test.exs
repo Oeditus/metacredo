@@ -26,6 +26,28 @@ defmodule MetaCredo.ConfigTest do
              end)
     end
 
+    test "default excludes match build/dep/vcs directories even without a leading path separator" do
+      # Regression test: `Path.wildcard/1` results for a top-level `included`
+      # entry (e.g. ".") return paths like "deps/foo/lib/bar.ex", with no
+      # leading "/" before "deps" -- the exclude patterns must still match
+      # these, not just absolute-style paths like "/project/deps/foo.ex".
+      config = Config.default()
+
+      matches? = fn path ->
+        Enum.any?(config.files.excluded, fn
+          %Regex{} = r -> Regex.match?(r, path)
+          _ -> false
+        end)
+      end
+
+      assert matches?.("deps/foo/lib/bar.ex")
+      assert matches?.("_build/dev/lib/foo.ex")
+      assert matches?.("node_modules/foo/index.js")
+      assert matches?.(".git/HEAD")
+      # still matches when nested under an absolute/relative prefix
+      assert matches?.("/home/me/project/deps/foo/lib/bar.ex")
+    end
+
     test "default includes disabled checks for error handling and unused operations" do
       disabled = Config.default_disabled_checks()
       assert MetaCredo.Check.Warning.MissingErrorHandling in disabled
@@ -34,7 +56,9 @@ defmodule MetaCredo.ConfigTest do
 
     test "global_config_path returns expected path under user config directory" do
       path = Config.global_config_path()
-      assert String.ends_with?(path, ".config/metacredo/.metacredo.exs") or String.contains?(path, "metacredo/.metacredo.exs")
+
+      assert String.ends_with?(path, ".config/metacredo/.metacredo.exs") or
+               String.contains?(path, "metacredo/.metacredo.exs")
     end
   end
 

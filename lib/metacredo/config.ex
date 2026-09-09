@@ -11,9 +11,9 @@ defmodule MetaCredo.Config do
             files: %{
               included: ["lib/", "src/", "web/"],
               excluded: [
-                ~r"/_build/",
-                ~r"/deps/",
-                ~r"/node_modules/"
+                ~r"(^|/)_build/",
+                ~r"(^|/)deps/",
+                ~r"(^|/)node_modules/"
               ]
             },
             checks: %{
@@ -69,10 +69,16 @@ defmodule MetaCredo.Config do
       files: %{
         included: ["lib/", "src/", "web/"],
         excluded: [
-          ~r"/_build/",
-          ~r"/deps/",
-          ~r"/node_modules/",
-          ~r"/\.git/"
+          # Anchored with `(^|/)` (not just a leading `/`) so these also
+          # match relative paths that have no leading path separator before
+          # the directory name -- e.g. `Path.wildcard/1` results for a
+          # top-level `included` entry like "." return paths such as
+          # "deps/foo/lib/bar.ex" (no leading "/deps/"), which a bare
+          # `~r"/deps/"` pattern would silently fail to exclude.
+          ~r"(^|/)_build/",
+          ~r"(^|/)deps/",
+          ~r"(^|/)node_modules/",
+          ~r"(^|/)\.git/"
         ]
       },
       checks: %{

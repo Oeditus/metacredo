@@ -141,7 +141,12 @@ defmodule MetaCredo.Execution do
     tags = if function_exported?(mod, :tags, 0), do: mod.tags(), else: []
 
     :db in tags or
-      String.contains?(to_string(mod), ["SQLInjection", "NPlusOneQuery", "MissingPreload", "Database"])
+      String.contains?(to_string(mod), [
+        "SQLInjection",
+        "NPlusOneQuery",
+        "MissingPreload",
+        "Database"
+      ])
   end
 
   defp user_check?(mod) do

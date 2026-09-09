@@ -86,25 +86,26 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
   defp traverse(node, issues, _sf), do: {node, issues}
 
   defp has_doc_comment?(children) when is_list(children) do
-    Enum.any?(children, &is_doc_node?/1)
+    Enum.any?(children, &doc_node?/1)
   end
 
-  defp is_doc_node?({:assignment, meta, [{:variable, _, var_name} | _]}) when is_list(meta) do
+  defp doc_node?({:assignment, meta, [{:variable, _, var_name} | _]}) when is_list(meta) do
     var_name in ["@moduledoc", ":moduledoc", "moduledoc"] or
-      (Keyword.get(meta, :attribute_type) == :module_attribute and var_name in ["@moduledoc", "moduledoc"])
+      (Keyword.get(meta, :attribute_type) == :module_attribute and
+         var_name in ["@moduledoc", "moduledoc"])
   end
 
-  defp is_doc_node?({:attribute, meta, [attr_name | _]}) when is_list(meta) do
+  defp doc_node?({:attribute, meta, [attr_name | _]}) when is_list(meta) do
     to_string(attr_name) in ["@moduledoc", "moduledoc", ":moduledoc"]
   end
 
-  defp is_doc_node?({:comment, meta, _text}) when is_list(meta) do
+  defp doc_node?({:comment, meta, _text}) when is_list(meta) do
     Keyword.get(meta, :comment_kind) == :doc or Keyword.get(meta, :doc) == true
   end
 
-  defp is_doc_node?({:block, _meta, statements}) when is_list(statements) do
-    Enum.any?(statements, &is_doc_node?/1)
+  defp doc_node?({:block, _meta, statements}) when is_list(statements) do
+    Enum.any?(statements, &doc_node?/1)
   end
 
-  defp is_doc_node?(_node), do: false
+  defp doc_node?(_node), do: false
 end

@@ -17,7 +17,7 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
             name: "default",
             files: %{
               included: ["lib/", "src/", "web/"],
-              excluded: [~r"/_build/", ~r"/deps/", ~r"/node_modules/"]
+              excluded: [~r"(^|/)_build/", ~r"(^|/)deps/", ~r"(^|/)node_modules/"]
             },
             checks: %{
               enabled: [
@@ -90,9 +90,9 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
           files: %{
             included: ["lib/", "src/", "web/"],
             excluded: [
-              ~r"/_build/",
-              ~r"/deps/",
-              ~r"/node_modules/"
+              ~r"(^|/)_build/",
+              ~r"(^|/)deps/",
+              ~r"(^|/)node_modules/"
             ]
           },
           checks: %{

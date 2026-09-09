@@ -19,8 +19,9 @@ defmodule Mix.Tasks.Metacredo do
   ## Path
 
   The `--path` option restricts analysis to a specific file or directory.
-  When omitted, the current directory (`.`) is used, with excluded patterns
-  from the configuration still applied.
+  When omitted, the `included` paths from `.metacredo.exs` are used (or
+  their `["lib/", "src/", "web/"]` default), with excluded patterns from
+  the configuration still applied.
 
       $ mix metacredo --path lib/
       $ mix metacredo --path lib/my_app/accounts.ex
@@ -78,20 +79,7 @@ defmodule Mix.Tasks.Metacredo do
   end
 
   defp run_analysis(opts) do
-    execution_opts =
-      []
-      |> maybe_add(:strict, opts[:strict])
-      |> maybe_add(:config_file, opts[:config] || opts[:config_file])
-      |> maybe_add(:only, parse_list(opts[:only]))
-      |> maybe_add(:ignore, parse_list(opts[:ignore]))
-      |> maybe_add(:files_included, parse_list(opts[:files_included]))
-      |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
-      |> maybe_add(:no_db, opts[:no_db])
-      |> maybe_add(:no_user, opts[:no_user])
-      |> maybe_add_path(opts)
-      |> maybe_add_diff_files(opts)
-
-    report = Execution.run(execution_opts)
+    report = Execution.run(build_execution_opts(opts))
 
     case opts[:format] do
       "json" ->
@@ -115,14 +103,45 @@ defmodule Mix.Tasks.Metacredo do
     end
   end
 
+  @doc false
+  # Builds `MetaCredo.Execution.run/1`'s options from parsed CLI `opts`.
+  # Exposed (undocumented) for regression testing of the --path / config
+  # `included` precedence rules, since `mix metacredo`'s own `run/1` drives
+  # real compilation, filesystem discovery, and process exit codes that are
+  # awkward to assert on directly.
+  @spec build_execution_opts(keyword()) :: keyword()
+  def build_execution_opts(opts) do
+    []
+    |> maybe_add(:strict, opts[:strict])
+    |> maybe_add(:config_file, opts[:config] || opts[:config_file])
+    |> maybe_add(:only, parse_list(opts[:only]))
+    |> maybe_add(:ignore, parse_list(opts[:ignore]))
+    |> maybe_add(:files_included, parse_list(opts[:files_included]))
+    |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
+    |> maybe_add(:no_db, opts[:no_db])
+    |> maybe_add(:no_user, opts[:no_user])
+    |> maybe_add_path(opts)
+    |> maybe_add_diff_files(opts)
+  end
+
   # Applies --path as the analysis root when --files-included is not set.
-  # Defaults to "." (current directory) when neither option is provided.
+  # When neither --path nor --files-included is given, :files_included is
+  # left unset entirely so `Execution.resolve_file_patterns/2` falls back to
+  # the `included` list from `.metacredo.exs` (or its "lib/"/"src/"/"web/"
+  # default) instead of silently defaulting to the current directory -- which
+  # would sweep `deps/`, `_build/`, and other non-source directories into
+  # analysis, ignoring the configured/default exclusions in the process (see
+  # CHANGELOG for details).
   defp maybe_add_path(opts_acc, opts) do
-    if Keyword.has_key?(opts_acc, :files_included) do
-      opts_acc
-    else
-      path = opts[:path] || "."
-      Keyword.put(opts_acc, :files_included, [path])
+    cond do
+      Keyword.has_key?(opts_acc, :files_included) ->
+        opts_acc
+
+      opts[:path] ->
+        Keyword.put(opts_acc, :files_included, [opts[:path]])
+
+      true ->
+        opts_acc
     end
   end
 

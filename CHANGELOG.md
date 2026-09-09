@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.6.1
+
+### Bug Fixes
+- **`mix metacredo` ignored `.metacredo.exs`'s `included` scope by default**: when neither `--path` nor `--files-included` was given, the CLI task unconditionally defaulted analysis to the current directory (`"."`), silently overriding the configured `files.included` (e.g. `["lib/", "src/", "web/"]`) and sweeping `deps/`, `_build/`, and other non-source directories into the report. `mix metacredo` (and `mix metacredo --diff`, which shares the same option resolution) now correctly falls back to the config's `included` paths whenever `--path` is omitted.
+- **`excluded` regex patterns silently failed to match relative paths without a leading path separator**: the default (and generated) `excluded` patterns (`~r"/deps/"`, `~r"/_build/"`, `~r"/node_modules/"`, `~r"/\.git/"`) required a literal `/` immediately before the directory name. `Path.wildcard/1` strips a leading `"./"` from a relative `included` entry, so results like `"deps/foo/lib/bar.ex"` (no leading `/`) were never excluded even when correctly listed in `excluded`. Patterns are now anchored with `(^|/)` so they match both relative (`"deps/..."`) and nested/absolute (`".../deps/..."`) paths. Both `MetaCredo.Config.default/0` and `mix metacredo.gen.config`'s generated template are updated.
+
 ## v0.6.0
 
 ### Enhancements & Fine-Grained Tuning
