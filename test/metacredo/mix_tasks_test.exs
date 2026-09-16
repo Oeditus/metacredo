@@ -32,6 +32,21 @@ defmodule Mix.Tasks.MetacredoTest do
         assert String.contains?(content, "no_user: false")
         assert String.contains?(content, "MetaCredo.Check.Warning.MissingErrorHandling")
         assert String.contains?(content, "MetaCredo.Check.Warning.UnusedOperation")
+
+        # The curated default policy must be reflected in the generated file:
+        # noisy checks belong in the `disabled` section, not `enabled`.
+        assert String.contains?(content, "MetaCredo.Check.Security.PathTraversal")
+        assert String.contains?(content, "MetaCredo.Check.Design.LowCohesion")
+        assert String.contains?(content, "MetaCredo.Check.Warning.CallbackHell")
+        assert String.contains?(content, "MetaCredo.Check.Readability.Specs")
+
+        # `disabled:` must appear before these check entries so they are
+        # genuinely disabled rather than merely listed.
+        [enabled_part, disabled_part] =
+          String.split(content, "disabled: [", parts: 2)
+
+        assert String.contains?(disabled_part, "MetaCredo.Check.Security.PathTraversal")
+        refute String.contains?(enabled_part, "MetaCredo.Check.Security.PathTraversal")
       after
         System.delete_env("XDG_CONFIG_HOME")
       end

@@ -263,6 +263,60 @@ Here is an example of a typical `.metacredo.exs` configuration file:
 
 Alternatively, set `enabled: :all` to run all available checks by default and explicitly list disabled checks in `disabled: [...]`.
 
+## Default Noise Policy
+
+MetaCredo ships with a **curated, low-noise default set**. The goal is that
+*every* finding reported by a default run is actionable without any
+configuration. Checks are disabled by default for one of two reasons:
+
+1. **They are project-specific** and only make sense with explicit opt-in
+   (e.g. web-only security checks in a CLI/library codebase).
+2. **They rely on unsound heuristics** (typically substring matching on
+   function or variable names) that produce a high false-positive rate on
+   idiomatic code.
+
+The following checks are disabled by default:
+
+| Check | Why it is off by default |
+|---|---|
+| `Security.MissingAuthentication` | Project-specific (web apps only). |
+| `Security.MissingCSRFProtection` | Project-specific (web apps only). |
+| `Security.IncorrectAuthorization` | Project-specific (web apps only). |
+| `Security.ImproperInputValidation` | Project-specific (web apps only). |
+| `Security.PathTraversal` | Name-substring heuristic: `format_issue` matches `rm`, `source_file` matches `file`. |
+| `Security.SSRFVulnerability` | Name-substring heuristic: `params_get` matches `get`. |
+| `Security.InsecureDirectObjectReference` | Name-substring heuristic: any variable containing `id`/`param`. |
+| `Security.MissingAuthorization` | Name-substring heuristic: `Map.update` flagged via `id` in args. |
+| `Security.XSSVulnerability` | Name-substring heuristic: `has_raw_content?` matches `raw`. |
+| `Security.UnrestrictedFileUpload` | Name-substring heuristic on helper functions. |
+| `Security.InlineJavascript` | Flags any string containing `<script>`/`onclick=`, including its own doc examples. |
+| `Warning.MissingErrorHandling` | Noisy on idiomatic `{:ok, _} = ...` discard patterns. |
+| `Warning.UnusedOperation` | Noisy on idiomatic discard patterns. |
+| `Warning.NPlusOneQuery` | `database_function?/1` matches any call containing `get`/`find`/`fetch`/`load`/`select`, so `Map.get` in a `reduce` trips it. |
+| `Observability.MissingTelemetryInAuthPlug` | Name-substring heuristic: `check_loc`, `tokens`, `validate_*` flagged as "auth". |
+| `Warning.ImperativeStatusHandling` | Name-substring heuristic: `block`, `lock`, `check` flagged as state transitions. |
+| `Design.LowCohesion` | Variable-sharing heuristic trips on nearly every module with helpers. |
+| `Warning.CallbackHell` | Redundant with `DeepNesting` + `ComplexConditional` + `HighComplexity`. |
+| `Warning.DebugLeftover` | Flags legitimate output primitives (`IO.puts`, `IO.write`). |
+| `Readability.Specs` | Noisy on behaviour callbacks and Mix-task `run/1`. |
+
+To enable any of these, add it to the `enabled` list (or remove it from
+`disabled`) in `.metacredo.exs`. For web projects, a good starting point is:
+
+```elixir
+checks: %{
+  enabled: :all,
+  disabled: [
+    # keep the genuinely noisy ones off
+    {MetaCredo.Check.Warning.CallbackHell, []},
+    {MetaCredo.Check.Warning.DebugLeftover, []},
+    {MetaCredo.Check.Design.LowCohesion, []}
+  ]
+}
+```
+
+`mix metacredo.gen.config` writes a configuration file that already reflects
+this policy: curated checks land in `enabled`, and the rest in `disabled`.
 ## Inline Disable Comments
 
 Use source comments to suppress specific checks:

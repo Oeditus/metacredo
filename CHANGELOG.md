@@ -1,7 +1,23 @@
 # Changelog
 
-## v0.6.1
+## Unreleased
 
+### Enhancements & Noise Reduction
+- **Curated default check set**: MetaCredo now ships with a much quieter default configuration. A default run on MetaCredo's own codebase dropped from 384 to 79 findings (~79% reduction) with no loss of actionable signal. The following checks are now disabled by default (see the README's "Default Noise Policy" section for the rationale):
+  - **Unsound name-substring security heuristics**: `Security.PathTraversal`, `Security.SSRFVulnerability`, `Security.InsecureDirectObjectReference`, `Security.MissingAuthorization`, `Security.XSSVulnerability`, `Security.UnrestrictedFileUpload`, `Security.InlineJavascript`. These flagged calls whose names merely contained fragments like `get`, `rm`, `file`, `raw`, `id`, or `param` (e.g. `format_issue` matched `rm`; `params_get` matched `get`; `has_raw_content?` matched `raw`).
+  - **Unsound database heuristic**: `Warning.NPlusOneQuery` (its `database_function?/1` matched any call containing `get`/`find`/`fetch`/`load`/`select`, so `Map.get` inside a `reduce` tripped it).
+  - **Unsound observability/state heuristics**: `Observability.MissingTelemetryInAuthPlug` and `Warning.ImperativeStatusHandling`.
+  - **Weak/redundant structural checks**: `Design.LowCohesion` (variable-sharing heuristic), `Warning.CallbackHell` (redundant with `DeepNesting` + `ComplexConditional` + `HighComplexity`).
+  - **Legitimate-idiom checks**: `Warning.DebugLeftover` (flagged `IO.puts`/`IO.write` output in CLI/library code).
+  - **Until skip-list lands**: `Readability.Specs`.
+  All of these remain available via explicit opt-in in `.metacredo.exs`.
+
+### Bug Fixes
+- **`Readability.ModuleDoc` false positives on macro-generated docs**: modules whose `@moduledoc` is injected by a `use` macro (e.g. `use MetaCredo.Check`) were reported as undocumented, because the injected attribute is only present in the expanded AST, not the source AST. The check now treats a module that `use`s a macro as documented. (Reduced ModuleDoc findings from 72 to 0 in this repo.)
+- **`Readability.Specs` noise on behaviour callbacks and Mix tasks**: the check no longer requires `@spec` for behaviour/OTP callbacks (`init/1`, `handle_call/3`, `handle_info/2`, `mount/3`, `render/1`, `perform/1`, `__using__/1`, etc.) or for `Mix.Task.run/1`, whose contracts are defined by the behaviour or framework. (Reduced Specs findings from 82 to 8 in this repo.)
+- **`Warning.DebugLeftover` false positives on legitimate output**: `IO.puts`, `IO.write`, `print`, `println`, `puts`, and `pp` are no longer flagged, since they are the intended output mechanism in CLI tools, scripts, and libraries. Only genuine debug leftovers (`IO.inspect`, `dbg`, `binding`, `IEx.pry`, `console.log`, etc.) are reported. (Reduced DebugLeftover findings from 46 to 0 in this repo.)
+
+## v0.6.1
 ### Bug Fixes
 - **`mix metacredo` ignored `.metacredo.exs`'s `included` scope by default**: when neither `--path` nor `--files-included` was given, the CLI task unconditionally defaulted analysis to the current directory (`"."`), silently overriding the configured `files.included` (e.g. `["lib/", "src/", "web/"]`) and sweeping `deps/`, `_build/`, and other non-source directories into the report. `mix metacredo` (and `mix metacredo --diff`, which shares the same option resolution) now correctly falls back to the config's `included` paths whenever `--path` is omitted.
 - **`excluded` regex patterns silently failed to match relative paths without a leading path separator**: the default (and generated) `excluded` patterns (`~r"/deps/"`, `~r"/_build/"`, `~r"/node_modules/"`, `~r"/\.git/"`) required a literal `/` immediately before the directory name. `Path.wildcard/1` strips a leading `"./"` from a relative `included` entry, so results like `"deps/foo/lib/bar.ex"` (no leading `/`) were never excluded even when correctly listed in `excluded`. Patterns are now anchored with `(^|/)` so they match both relative (`"deps/..."`) and nested/absolute (`".../deps/..."`) paths. Both `MetaCredo.Config.default/0` and `mix metacredo.gen.config`'s generated template are updated.

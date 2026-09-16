@@ -5,8 +5,12 @@ defmodule MetaCredo.Check.Warning.DebugLeftover do
     explanations: [
       check: """
       Detects debug function calls left in code, such as `IO.inspect`,
-      `IO.puts`, `dbg()`, `print()`, `console.log`, `pry`, and similar.
-      These should be removed before merging to production.
+      `dbg()`, `binding()`, `IEx.pry`, and `console.log`. These should be
+      removed before merging to production.
+
+      Legitimate output primitives (`IO.puts`, `IO.write`, `print`, etc.)
+      are intentionally not flagged, since they are the intended output
+      mechanism in CLI tools, scripts, and libraries.
       """,
       examples: [
         elixir: [
@@ -28,11 +32,17 @@ defmodule MetaCredo.Check.Warning.DebugLeftover do
       ]
     ]
 
+  # Functions whose *only* purpose is debugging/inspection. These are safe to
+  # flag: they carry no production value and should be removed before merge.
+  #
+  # NOTE: legitimate output primitives (`IO.puts`, `IO.write`, `print`,
+  # `println`, `puts`, `pp`, `puts`) are deliberately NOT listed here. In a
+  # CLI tool, library, or script those are the intended output mechanism, not
+  # leftover debugging -- flagging them produces a flood of false positives.
   @debug_functions ~W(
-    IO.inspect IO.puts IO.write
+    IO.inspect IO.inspect! IO.binwrite
     dbg IEx.pry binding
-    console.log console.debug console.warn console.error
-    print println pp p puts
+    console.log console.debug console.warn console.error console.trace
     var_dump print_r dd dump
     Debug.print debugger pry
   )

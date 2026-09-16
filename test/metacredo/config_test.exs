@@ -54,6 +54,35 @@ defmodule MetaCredo.ConfigTest do
       assert MetaCredo.Check.Warning.UnusedOperation in disabled
     end
 
+    test "default disables high-false-positive and redundant checks" do
+      disabled = Config.default_disabled_checks()
+
+      # Naive name-substring heuristics -- unsound on idiomatic code
+      assert MetaCredo.Check.Observability.MissingTelemetryInAuthPlug in disabled
+      assert MetaCredo.Check.Warning.ImperativeStatusHandling in disabled
+      assert MetaCredo.Check.Design.LowCohesion in disabled
+
+      # Security checks with unsound name-substring heuristics
+      assert MetaCredo.Check.Security.PathTraversal in disabled
+      assert MetaCredo.Check.Security.SSRFVulnerability in disabled
+      assert MetaCredo.Check.Security.InsecureDirectObjectReference in disabled
+      assert MetaCredo.Check.Security.MissingAuthorization in disabled
+      assert MetaCredo.Check.Security.XSSVulnerability in disabled
+      assert MetaCredo.Check.Security.UnrestrictedFileUpload in disabled
+      assert MetaCredo.Check.Security.InlineJavascript in disabled
+      # Database check with unsound "looks like a query" heuristic
+      assert MetaCredo.Check.Warning.NPlusOneQuery in disabled
+
+      # Redundant with DeepNesting + ComplexConditional + HighComplexity
+      assert MetaCredo.Check.Warning.CallbackHell in disabled
+
+      # Flags legitimate library/CLI output idioms
+      assert MetaCredo.Check.Warning.DebugLeftover in disabled
+
+      # Noisy until behaviour-callback / Mix-task skip-list lands
+      assert MetaCredo.Check.Readability.Specs in disabled
+    end
+
     test "global_config_path returns expected path under user config directory" do
       path = Config.global_config_path()
 

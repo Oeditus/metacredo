@@ -88,16 +88,76 @@ defmodule MetaCredo.Config do
     }
   end
 
-  @doc "Returns default disabled checks."
+  @doc """
+  Returns the list of checks disabled by default.
+
+  These checks are either project-specific (security checks that need
+  explicit opt-in) or have a high false-positive rate on idiomatic code
+  (name-substring heuristics, redundant nesting checks, or checks that
+  flag legitimate library/CLI idioms). They can be re-enabled explicitly
+  in `.metacredo.exs`.
+
+  The goal is a curated, low-noise default set: every finding reported by
+  a default run should be actionable without configuration.
+  """
   @spec default_disabled_checks() :: [module()]
   def default_disabled_checks do
     [
+      # -- Security checks that are project-specific (need explicit opt-in) --
       MetaCredo.Check.Security.MissingAuthentication,
       MetaCredo.Check.Security.MissingCSRFProtection,
       MetaCredo.Check.Security.IncorrectAuthorization,
       MetaCredo.Check.Security.ImproperInputValidation,
+
+      # -- Security checks with unsound name-substring heuristics --
+      # These flag *any* call whose function name or argument name merely
+      # contains a fragment like "get", "rm", "file", "raw", "id",
+      # "param" (e.g. `format_issue` matches "rm", `params_get` matches
+      # "get", `has_raw_content?` matches "raw"). On non-web code they
+      # produce a flood of false positives, so they are off by default;
+      # enable them explicitly for web projects where the heuristic is at
+      # least in the right neighbourhood.
+      MetaCredo.Check.Security.PathTraversal,
+      MetaCredo.Check.Security.SSRFVulnerability,
+      MetaCredo.Check.Security.InsecureDirectObjectReference,
+      MetaCredo.Check.Security.MissingAuthorization,
+      MetaCredo.Check.Security.XSSVulnerability,
+      MetaCredo.Check.Security.UnrestrictedFileUpload,
+      # Flags any string literal containing "<script>"/"onclick=", including
+      # the check's own documentation examples and test fixtures.
+      MetaCredo.Check.Security.InlineJavascript,
+
+      # -- Return-value checks (opt-in; noisy on idiomatic discard patterns) --
       MetaCredo.Check.Warning.MissingErrorHandling,
-      MetaCredo.Check.Warning.UnusedOperation
+      MetaCredo.Check.Warning.UnusedOperation,
+      # -- Database check with unsound "looks like a query" heuristic --
+      # `database_function?/1` matches any call containing "get"/"find"/
+      # "fetch"/"load"/"select", so `Map.get`/`Keyword.get` inside a
+      # `reduce` trip it. Enable for Ecto projects.
+      MetaCredo.Check.Warning.NPlusOneQuery,
+
+      # -- High false-positive-rate checks (naive name-substring heuristics) --
+      # Flags any function whose name merely contains an auth-ish fragment
+      # (e.g. `check_loc`, `tokens`, `validate_*`). Unsound without real
+      # Plug/Guardian call-site analysis.
+      MetaCredo.Check.Observability.MissingTelemetryInAuthPlug,
+      # Flags any function whose name contains a transition verb fragment
+      # (e.g. `block`, `lock`, `check`), regardless of actual state handling.
+      MetaCredo.Check.Warning.ImperativeStatusHandling,
+      # Variable-sharing heuristic trips on nearly every module that has
+      # helper functions; too weak to be actionable by default.
+      MetaCredo.Check.Design.LowCohesion,
+
+      # -- Redundant with DeepNesting + ComplexConditional + HighComplexity --
+      # Reporting the same nesting three times trains users to ignore all of it.
+      MetaCredo.Check.Warning.CallbackHell,
+
+      # -- Flags legitimate library/CLI idioms (e.g. `IO.puts` as output) --
+      # Re-enable once narrowed to genuine debug leftovers only.
+      MetaCredo.Check.Warning.DebugLeftover,
+
+      # -- Noisy until behaviour-callback / Mix-task skip-list lands --
+      MetaCredo.Check.Readability.Specs
     ]
   end
 

@@ -42,6 +42,18 @@ defmodule MetaCredo.Check.Readability.Specs do
     issues
   end
 
+  # Behaviour/OTP callbacks and framework entry points that legitimately do
+  # not carry `@spec`s in user code: the contract is defined by the behaviour
+  # (or the framework), and re-specifying it adds noise without value.
+  @callback_names ~W(
+    __using__ __before_compile__ __after_compile__
+    init call handle_call handle_cast handle_info handle_continue
+    handle_event handle_async terminate code_change format_status
+    mount render update before_compile after_compile
+    run perform changeset validate to_string inspect
+    child_spec start_link start stop
+  )
+
   # Check containers (modules) for function_defs preceded by type_annotations
   defp traverse({:container, _meta, children} = node, issues, source_file)
        when is_list(children) do
@@ -52,34 +64,38 @@ defmodule MetaCredo.Check.Readability.Specs do
   defp traverse(node, issues, _sf), do: {node, issues}
 
   defp check_children(children, source_file) do
-    check_sequential(children, false, source_file, [])
+    skip_callbacks? = behaviour_module?(children) or mix_task?(children)
+    check_sequential(children, false, source_file, [], skip_callbacks?)
   end
 
-  defp check_sequential([], _spec_seen, _source_file, acc), do: acc
+  defp check_sequential([], _spec_seen, _source_file, acc, _skip), do: acc
 
   defp check_sequential(
          [{:type_annotation, meta, _children} | rest],
          _spec_seen,
          source_file,
-         acc
+         acc,
+         skip
        )
        when is_list(meta) do
     is_spec = Keyword.get(meta, :annotation_type) == :spec
-    check_sequential(rest, is_spec, source_file, acc)
+    check_sequential(rest, is_spec, source_file, acc, skip)
   end
 
   defp check_sequential(
          [{:function_def, meta, _children} | rest],
          spec_seen,
          source_file,
-         acc
+         acc,
+         skip
        )
        when is_list(meta) do
     visibility = Keyword.get(meta, :visibility, :public)
+    name = Keyword.get(meta, :name, "anonymous")
 
     acc =
-      if visibility == :public and not spec_seen do
-        name = Keyword.get(meta, :name, "anonymous")
+      if visibility == :public and not spec_seen and
+           not (skip and callback_name?(name)) do
         line = Keyword.get(meta, :line)
 
         issue =
@@ -94,10 +110,40 @@ defmodule MetaCredo.Check.Readability.Specs do
         acc
       end
 
-    check_sequential(rest, false, source_file, acc)
+    check_sequential(rest, false, source_file, acc, skip)
   end
 
-  defp check_sequential([_ | rest], _spec_seen, source_file, acc) do
-    check_sequential(rest, false, source_file, acc)
+  defp check_sequential([_ | rest], _spec_seen, source_file, acc, skip) do
+    check_sequential(rest, false, source_file, acc, skip)
   end
+
+  # A module that declares a behaviour (via `@behaviour` or `use` of a
+  # behaviour-providing macro) is expected to implement callbacks whose
+  # contracts are already specified by that behaviour.
+  defp behaviour_module?(children) when is_list(children) do
+    Enum.any?(children, fn
+      {:assignment, meta, [{:variable, _, var_name} | _]} when is_list(meta) ->
+        var_name in ["@behaviour", "@impl"]
+
+      {:import, meta, _} when is_list(meta) ->
+        Keyword.get(meta, :import_type) == :use
+
+      _ ->
+        false
+    end)
+  end
+
+  defp mix_task?(children) when is_list(children) do
+    Enum.any?(children, fn
+      {:import, meta, _} when is_list(meta) ->
+        Keyword.get(meta, :source) == "Mix.Task"
+
+      _ ->
+        false
+    end)
+  end
+
+  defp callback_name?(name) when is_binary(name), do: name in @callback_names
+  defp callback_name?(name) when is_atom(name), do: Atom.to_string(name) in @callback_names
+  defp callback_name?(_), do: false
 end

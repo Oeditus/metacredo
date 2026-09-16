@@ -89,6 +89,13 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
     Enum.any?(children, &doc_node?/1)
   end
 
+  # A module is considered documented if it explicitly sets `@moduledoc`
+  # (any form), OR if it `use`s a macro that generates a `@moduledoc` on
+  # its behalf. The latter is common for behaviour-providing macros such as
+  # `use MetaCredo.Check`, whose `__using__/1` injects a `@moduledoc` into
+  # the caller. Since the injected attribute is only present in the expanded
+  # AST (not the source AST we analyse), we detect the `use` itself and
+  # treat the module as documented.
   defp doc_node?({:assignment, meta, [{:variable, _, var_name} | _]}) when is_list(meta) do
     var_name in ["@moduledoc", ":moduledoc", "moduledoc"] or
       (Keyword.get(meta, :attribute_type) == :module_attribute and
@@ -97,6 +104,11 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
 
   defp doc_node?({:attribute, meta, [attr_name | _]}) when is_list(meta) do
     to_string(attr_name) in ["@moduledoc", "moduledoc", ":moduledoc"]
+  end
+
+  # `use SomeMacro` -- the macro may inject `@moduledoc`; treat as documented.
+  defp doc_node?({:import, meta, _children}) when is_list(meta) do
+    Keyword.get(meta, :import_type) == :use
   end
 
   defp doc_node?({:comment, meta, _text}) when is_list(meta) do
