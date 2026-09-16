@@ -7,6 +7,10 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
       check: """
       Detects deeply nested function calls like `foo(bar(baz(qux(x))))`.
       Extract intermediate results into variables or use pipes for clarity.
+
+      Pipe chains are not reported: `input |> f() |> g()` desugars to
+      `g(f(input))`, but the pipeline reads linearly, so its steps are not
+      counted as nesting levels.
       """,
       params: [
         max_nesting: "Maximum allowed nesting depth of function calls (default: 3)"
@@ -79,8 +83,17 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
     |> Enum.max(fn -> 0 end)
   end
 
-  defp arg_call_depth({:function_call, _meta, nested_args}) when is_list(nested_args) do
-    1 + call_nesting_depth(nested_args)
+  # A pipe step (`x |> f(y)` desugars to `f(x, y)` with `pipe: true`) is not a
+  # nesting level: the piped-in value is threaded as the first argument, so the
+  # chain reads linearly rather than inside-out. We still recurse into the pipe
+  # step's arguments so that genuinely nested calls *within* a pipe are counted.
+  defp arg_call_depth({:function_call, meta, nested_args})
+       when is_list(meta) and is_list(nested_args) do
+    if Keyword.get(meta, :pipe, false) do
+      call_nesting_depth(nested_args)
+    else
+      1 + call_nesting_depth(nested_args)
+    end
   end
 
   defp arg_call_depth(_), do: 0

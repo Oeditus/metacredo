@@ -255,6 +255,64 @@ defmodule MetaCredo.Check.ReadabilityCredoTest do
       issues = run_check(Readability.NestedFunctionCalls, ast: ast, params: [max_nesting: 0])
       assert_issue(issues, message: ~r/nested/i)
     end
+
+    test "does not count pipe steps as nesting levels" do
+      # `input |> String.trim() |> String.split(",") |> Enum.join(" | ")`
+      # desugars to Enum.join(String.split(String.trim(input), ","), " | ")
+      # with `pipe: true` on each step. The chain is linear, not nested.
+      trim = call("String.trim", [var("input")], pipe: true, line: 3)
+      split = call("String.split", [trim, literal_string(",")], pipe: true, line: 4)
+      join = call("Enum.join", [split, literal_string(" | ")], pipe: true, line: 5)
+
+      issues = run_check(Readability.NestedFunctionCalls, ast: join, params: [max_nesting: 3])
+      assert_no_issues(issues)
+    end
+
+    test "still counts genuine nesting inside a pipe step" do
+      # `x |> foo(bar(baz(qux(y))))` -- the pipe step itself is not a level,
+      # but the calls nested in its argument are.
+      qux = call("qux", [var("y")])
+      baz = call("baz", [qux])
+      bar = call("bar", [baz])
+      step = call("foo", [var("x"), bar], pipe: true, line: 1)
+
+      issues = run_check(Readability.NestedFunctionCalls, ast: step, params: [max_nesting: 2])
+      assert_issue(issues, message: ~r/nested/i)
+    end
+
+    test "does not flag a real multi-step pipeline end-to-end" do
+      source = """
+      defmodule Pipeline do
+        def run(input) do
+          input
+          |> String.trim()
+          |> String.split(",")
+          |> Enum.map(&String.trim/1)
+          |> Enum.join(" | ")
+        end
+      end
+      """
+
+      assert {:ok, sf} = SourceFile.parse(source, "pipeline.ex", :elixir)
+      issues = Readability.NestedFunctionCalls.run(sf, max_nesting: 3)
+
+      assert_no_issues(issues)
+    end
+
+    test "flags a real deeply nested call end-to-end" do
+      source = """
+      defmodule Nested do
+        def run(x) do
+          foo(bar(baz(qux(x))))
+        end
+      end
+      """
+
+      assert {:ok, sf} = SourceFile.parse(source, "nested.ex", :elixir)
+      issues = Readability.NestedFunctionCalls.run(sf, max_nesting: 2)
+
+      assert_issue(issues, message: ~r/nested/i)
+    end
   end
 
   # -- Specs ----------------------------------------------------------------
