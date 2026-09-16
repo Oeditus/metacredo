@@ -50,6 +50,139 @@ defmodule MetaCredo.Check.DesignCredoTest do
 
       assert_issue_count(issues, 1)
     end
+
+    test "does not flag TODO inside a string literal" do
+      source = ~S(def msg, do: "TODO: not a comment") <> "\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "does not flag TODO in a variable or function name" do
+      source = "def todo_list, do: :ok\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "does not flag TODO mentioned in @moduledoc prose" do
+      source = ~S(@moduledoc "has TODO inside a string, not a comment") <> "\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "flags a TODO that follows code on the same line" do
+      source = "x = 1  # TODO: trailing comment\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_issue(issues, trigger: "TODO", line_no: 1)
+    end
+
+    test "does not treat a # inside a string as a comment start" do
+      source = ~S(msg = "a # b TODO here") <> "\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "accepts a custom regexp via the :tags param" do
+      source = "# XXX: needs attention\n# TODO: normal\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true, tags: [~r/XXX/]]
+        )
+
+      assert_issue_count(issues, 1)
+      assert_issue(issues, trigger: "XXX", line_no: 1)
+    end
+
+    test "accepts a mix of literal strings and regexes in :tags" do
+      source = "# XXX: needs attention\n# HACK: temporary\n# TODO: normal\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true, tags: ["TODO", ~r/XXX/]]
+        )
+
+      assert_issue_count(issues, 2)
+      assert_issue(issues, trigger: "XXX", line_no: 1)
+      assert_issue(issues, trigger: "TODO", line_no: 3)
+    end
+
+    test "string tags match literally, not as regexes" do
+      # "T.DO" as a string must not match "TODO"; as a regex it would.
+      source = "# TODO: normal\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true, tags: ["T.DO"]]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "empty :tags disables the check" do
+      source = "# TODO: normal\n"
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true, tags: []]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "custom tag is also matched in comment AST nodes" do
+      ast = comment("XXX: revisit", line: 7)
+
+      issues =
+        run_check(Design.TagTodo,
+          ast: ast,
+          params: [include_source_scan: false, tags: [~r/XXX/]]
+        )
+
+      assert_issue(issues, trigger: "XXX", line_no: 7)
+    end
   end
 
   # ── TagFixme ────────────────────────────────────────────────────────
@@ -95,6 +228,98 @@ defmodule MetaCredo.Check.DesignCredoTest do
 
       issues = run_check(Design.TagFixme, ast: ast, params: [include_source_scan: false])
       assert_all_category(issues, :design)
+    end
+
+    test "does not flag FIXME inside a string literal" do
+      source = ~S(def msg, do: "FIXME: not a comment") <> "\n"
+
+      issues =
+        run_check(Design.TagFixme,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "does not flag FIXME in a variable or function name" do
+      source = "def fixme_list, do: :ok\n"
+
+      issues =
+        run_check(Design.TagFixme,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "flags a FIXME that follows code on the same line" do
+      source = "y = 2  # FIXME: broken\n"
+
+      issues =
+        run_check(Design.TagFixme,
+          ast: literal_int(2),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_issue(issues, trigger: "FIXME", line_no: 1)
+    end
+
+    test "does not treat a # inside a string as a comment start" do
+      source = ~S(msg = "a # b FIXME here") <> "\n"
+
+      issues =
+        run_check(Design.TagFixme,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "accepts a custom regexp via the :tags param" do
+      source = "# HACK: temporary\n# FIXME: broken\n"
+
+      issues =
+        run_check(Design.TagFixme,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true, tags: [~r/HACK/]]
+        )
+
+      assert_issue_count(issues, 1)
+      assert_issue(issues, trigger: "HACK", line_no: 1)
+    end
+
+    test "string tags match literally, not as regexes" do
+      source = "# FIXME: broken\n"
+
+      issues =
+        run_check(Design.TagFixme,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true, tags: ["F.XME"]]
+        )
+
+      assert_no_issues(issues)
+    end
+
+    test "empty :tags disables the check" do
+      source = "# FIXME: broken\n"
+
+      issues =
+        run_check(Design.TagFixme,
+          ast: literal_int(1),
+          source: source,
+          params: [include_source_scan: true, tags: []]
+        )
+
+      assert_no_issues(issues)
     end
   end
 end

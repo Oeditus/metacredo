@@ -157,8 +157,8 @@ check is cross-language by default.
 - `HighComplexity`—Functions with cyclomatic complexity exceeding threshold
 - `LowCohesion`—Modules where functions share no common data
 - `HighCoupling`—Modules with too many external dependencies
-- `TagTODO`—TODO comments that should be addressed
-- `TagFIXME`—FIXME comments indicating known bugs
+- `TagTODO`—TODO comments that should be addressed (configurable via `tags`)
+- `TagFIXME`—FIXME comments indicating known bugs (configurable via `tags`)
 
 ### Observability `[O]`—5 checks
 
@@ -262,6 +262,24 @@ Here is an example of a typical `.metacredo.exs` configuration file:
 ```
 
 Alternatively, set `enabled: :all` to run all available checks by default and explicitly list disabled checks in `disabled: [...]`.
+
+### Configuring TODO / FIXME tags
+
+The `Design.TagTodo` and `Design.TagFixme` checks accept a `tags` param: a
+list of tag patterns to search for inside comments. Each entry may be a
+literal string (matched exactly, case-insensitively) or a regex:
+
+```elixir
+# -- Design --
+# Report TODO plus the custom XXX tag, and FIXME plus HACK:
+{MetaCredo.Check.Design.TagTodo, [tags: ["TODO", ~r/XXX/]]},
+{MetaCredo.Check.Design.TagFixme, [tags: ["FIXME", ~r/HACK/]]},
+```
+
+Defaults are `tags: ["TODO"]` and `tags: ["FIXME"]` respectively. Passing
+`tags: []` disables the check. Only matches that occur **inside a comment**
+are reported -- a tag appearing in a string literal, variable/function name,
+or `@moduledoc` prose is ignored.
 
 ## Default Noise Policy
 
