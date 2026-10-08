@@ -46,5 +46,83 @@ defmodule MetaCredo.SourcesTest do
       refute Enum.any?(filenames, &String.contains?(&1, "deps/"))
       refute Enum.any?(filenames, &String.contains?(&1, "_build/"))
     end
+
+    test "excludes the test/ tree by default, even when included is \".\"" do
+      tmp_dir = System.tmp_dir!()
+
+      dir_path =
+        Path.join(tmp_dir, "metacredo_sources_test_excl_#{System.unique_integer([:positive])}")
+
+      lib_file = Path.join(dir_path, "lib/real.ex")
+      test_file = Path.join(dir_path, "test/real_test.exs")
+      nested_test_file = Path.join(dir_path, "lib/test/nested.ex")
+      umbrella_test_file = Path.join(dir_path, "apps/my_app/test/my_app_test.exs")
+
+      for path <- [lib_file, test_file, nested_test_file, umbrella_test_file] do
+        path |> Path.dirname() |> File.mkdir_p!()
+        File.write!(path, "defmodule Fixture do\nend\n")
+      end
+
+      on_exit(fn -> File.rm_rf!(dir_path) end)
+
+      excluded = Config.default().files.excluded
+
+      source_files =
+        File.cd!(dir_path, fn ->
+          Sources.find(%{included: ["."], excluded: excluded})
+        end)
+
+      filenames = Enum.map(source_files, & &1.filename)
+
+      assert Enum.any?(filenames, &String.ends_with?(&1, "lib/real.ex"))
+      refute Enum.any?(filenames, &String.contains?(&1, "test/"))
+    end
+
+    test "an explicitly included test/ path is still analysed (opt-in)" do
+      tmp_dir = System.tmp_dir!()
+
+      dir_path =
+        Path.join(tmp_dir, "metacredo_sources_test_optin_#{System.unique_integer([:positive])}")
+
+      test_file = Path.join(dir_path, "test/real_test.exs")
+      test_file |> Path.dirname() |> File.mkdir_p!()
+      File.write!(test_file, "defmodule Fixture do\nend\n")
+
+      on_exit(fn -> File.rm_rf!(dir_path) end)
+
+      # Explicitly targeting the test/ tree bypasses the default exclusion
+      # because the CLI injects the path as `files_included` and the
+      # per-path `Sources.find/1` overload applies no exclusions.
+      source_files =
+        File.cd!(dir_path, fn ->
+          Sources.find("test/")
+        end)
+
+      filenames = Enum.map(source_files, & &1.filename)
+
+      assert Enum.any?(filenames, &String.ends_with?(&1, "test/real_test.exs"))
+    end
+
+    test "returns an empty list when every discovered file is excluded" do
+      tmp_dir = System.tmp_dir!()
+
+      dir_path =
+        Path.join(tmp_dir, "metacredo_sources_test_empty_#{System.unique_integer([:positive])}")
+
+      test_file = Path.join(dir_path, "test/only_test.exs")
+      test_file |> Path.dirname() |> File.mkdir_p!()
+      File.write!(test_file, "defmodule Fixture do\nend\n")
+
+      on_exit(fn -> File.rm_rf!(dir_path) end)
+
+      excluded = Config.default().files.excluded
+
+      source_files =
+        File.cd!(dir_path, fn ->
+          Sources.find(%{included: ["."], excluded: excluded})
+        end)
+
+      assert source_files == []
+    end
   end
 end

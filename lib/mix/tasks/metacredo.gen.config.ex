@@ -92,7 +92,9 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
             excluded: [
               ~r"(^|/)_build/",
               ~r"(^|/)deps/",
-              ~r"(^|/)node_modules/"
+              ~r"(^|/)node_modules/",
+              ~r"(^|/)\.git/",
+              ~r"(^|/)test/"
             ]
           },
           checks: %{

@@ -39,6 +39,11 @@ defmodule MetaCredo.Execution do
   - `:ignore` - Skip checks in these categories
   - `:files_included` - Override file include patterns
   - `:files_excluded` - Override file exclude patterns
+
+  When `:files_included` is given, the *default* `test/` exclusion is lifted
+  so an explicitly targeted path (e.g. `--path test/`) is analysed; all other
+  exclusions and any configured `excluded` patterns still apply. When
+  `:files_excluded` is given it replaces the configured exclusions verbatim.
   """
   @spec run(run_opts()) :: report()
   def run(opts \\ []) do
@@ -99,9 +104,38 @@ defmodule MetaCredo.Execution do
 
     %{
       included: opts[:files_included] || base.included,
-      excluded: opts[:files_excluded] || base.excluded
+      excluded: resolve_excluded(base.excluded, opts)
     }
   end
+
+  # The default `test/` exclusion is a *default*, not a hard rule: when the
+  # user explicitly targets paths via `:files_included` (e.g. `--path test/`
+  # or `--files-included test/`), that is a deliberate opt-in and must not be
+  # silently swallowed by the default pattern. Every other exclusion
+  # (`deps/`, `_build/`, ...) and any user-configured `excluded` patterns
+  # still apply. An explicit `:files_excluded` always wins verbatim.
+  defp resolve_excluded(base_excluded, opts) do
+    case Keyword.fetch(opts, :files_excluded) do
+      {:ok, excluded} when is_list(excluded) -> excluded
+      _ -> lift_default_test_exclusion(base_excluded, opts)
+    end
+  end
+
+  defp lift_default_test_exclusion(base_excluded, opts) do
+    case Keyword.fetch(opts, :files_included) do
+      {:ok, included} when is_list(included) ->
+        test_pattern = Config.test_exclusion_pattern()
+        Enum.reject(base_excluded, &same_pattern?(&1, test_pattern))
+
+      _ ->
+        base_excluded
+    end
+  end
+
+  # Regexes do not implement structural equality (two separately-built
+  # `~r"foo"` values are not `==`), so compare their `source` instead.
+  defp same_pattern?(%Regex{source: a}, %Regex{source: b}), do: a == b
+  defp same_pattern?(a, b), do: a == b
 
   defp resolve_checks(config, opts) do
     checks = Config.enabled_checks(config)

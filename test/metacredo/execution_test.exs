@@ -116,6 +116,97 @@ defmodule MetaCredo.ExecutionTest do
     end
   end
 
+  describe "test/ default exclusion" do
+    test "default run skips test/ trees discovered from the config" do
+      tmp_dir = System.tmp_dir!()
+
+      dir_path =
+        Path.join(tmp_dir, "metacredo_exec_test_excl_#{System.unique_integer([:positive])}")
+
+      lib_file = Path.join(dir_path, "lib/real.ex")
+      test_file = Path.join(dir_path, "test/real_test.exs")
+
+      for path <- [lib_file, test_file] do
+        path |> Path.dirname() |> File.mkdir_p!()
+        File.write!(path, "defmodule Fixture do\nend\n")
+      end
+
+      on_exit(fn -> File.rm_rf!(dir_path) end)
+
+      config = %{
+        name: "test",
+        files: %{
+          included: [Path.join(dir_path, "lib"), Path.join(dir_path, "test")],
+          excluded: MetaCredo.Config.default().files.excluded
+        },
+        checks: %{enabled: [], disabled: []}
+      }
+
+      report = Execution.run(config: config)
+      filenames = Enum.map(report.source_files, & &1.filename)
+
+      assert Enum.any?(filenames, &String.ends_with?(&1, "lib/real.ex"))
+      refute Enum.any?(filenames, &String.contains?(&1, "test/"))
+    end
+
+    test "explicitly targeting test/ via :files_included opts it back in" do
+      tmp_dir = System.tmp_dir!()
+
+      dir_path =
+        Path.join(tmp_dir, "metacredo_exec_test_optin_#{System.unique_integer([:positive])}")
+
+      test_file = Path.join(dir_path, "test/real_test.exs")
+      test_file |> Path.dirname() |> File.mkdir_p!()
+      File.write!(test_file, "defmodule Fixture do\nend\n")
+
+      on_exit(fn -> File.rm_rf!(dir_path) end)
+
+      report =
+        Execution.run(
+          config: %{
+            name: "test",
+            files: %{
+              included: ["lib/"],
+              excluded: MetaCredo.Config.default().files.excluded
+            },
+            checks: %{enabled: [], disabled: []}
+          },
+          files_included: [Path.join(dir_path, "test")]
+        )
+
+      filenames = Enum.map(report.source_files, & &1.filename)
+      assert Enum.any?(filenames, &String.ends_with?(&1, "test/real_test.exs"))
+    end
+
+    test "an explicit :files_excluded still wins over the default exclusion" do
+      tmp_dir = System.tmp_dir!()
+
+      dir_path =
+        Path.join(
+          tmp_dir,
+          "metacredo_exec_test_excl_override_#{System.unique_integer([:positive])}"
+        )
+
+      test_file = Path.join(dir_path, "test/real_test.exs")
+      test_file |> Path.dirname() |> File.mkdir_p!()
+      File.write!(test_file, "defmodule Fixture do\nend\n")
+
+      on_exit(fn -> File.rm_rf!(dir_path) end)
+
+      report =
+        Execution.run(
+          config: %{
+            name: "test",
+            files: %{included: [Path.join(dir_path, "test")], excluded: []},
+            checks: %{enabled: [], disabled: []}
+          },
+          files_excluded: [MetaCredo.Config.test_exclusion_pattern()]
+        )
+
+      assert report.source_files == []
+    end
+  end
+
   describe "umbrella switches (no_db, no_user)" do
     test "no_db option excludes DB checks from checks_run" do
       report =

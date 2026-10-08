@@ -78,7 +78,15 @@ defmodule MetaCredo.Config do
           ~r"(^|/)_build/",
           ~r"(^|/)deps/",
           ~r"(^|/)node_modules/",
-          ~r"(^|/)\.git/"
+          ~r"(^|/)\.git/",
+          # Test trees are excluded by default: checks are tuned for
+          # production code, and test files legitimately contain patterns
+          # (hardcoded credentials, `assert_raise`, magic numbers, etc.)
+          # that would otherwise flood the report with false positives.
+          # This also covers umbrella apps (`apps/*/test/`). Re-include a
+          # tree explicitly via `files.included` (or `--files-included`)
+          # when you do want tests analysed.
+          test_exclusion_pattern()
         ]
       },
       checks: %{
@@ -87,6 +95,23 @@ defmodule MetaCredo.Config do
       }
     }
   end
+
+  @doc """
+  Returns the default exclusion pattern for `test/` trees.
+
+  Checks are tuned for production code, and test files legitimately contain
+  patterns (hardcoded credentials, `assert_raise`, magic numbers, etc.) that
+  would otherwise flood a default report with false positives. This pattern
+  matches a `test/` directory at the project root, nested (`lib/test/`), or
+  inside an umbrella app (`apps/*/test/`), while deliberately *not* matching
+  paths that merely contain the substring `test` (e.g. `lib/latest/`,
+  `lib/contest/`, or a root-level `test_helper.exs`).
+
+  Exposed so callers (e.g. `MetaCredo.Execution`) can treat this exclusion
+  as a *default* that is lifted when the user explicitly targets a path.
+  """
+  @spec test_exclusion_pattern() :: Regex.t()
+  def test_exclusion_pattern, do: ~r"(^|/)test/"
 
   @doc """
   Returns the list of checks disabled by default.

@@ -21,10 +21,13 @@ defmodule Mix.Tasks.Metacredo do
   The `--path` option restricts analysis to a specific file or directory.
   When omitted, the `included` paths from `.metacredo.exs` are used (or
   their `["lib/", "src/", "web/"]` default), with excluded patterns from
-  the configuration still applied.
+  the configuration still applied. Test trees (`test/`, including nested
+  `lib/test/` and umbrella `apps/*/test/`) are excluded by default; passing
+  `--path test/` (or listing it in `files.included`) opts them back in.
 
       $ mix metacredo --path lib/
       $ mix metacredo --path lib/my_app/accounts.ex
+      $ mix metacredo --path test/
 
   ## Diff Mode
 

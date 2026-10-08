@@ -203,10 +203,11 @@ Here is an example of a typical `.metacredo.exs` configuration file:
       files: %{
         included: ["lib/", "src/", "web/"],
         excluded: [
-          ~r"/_build/",
-          ~r"/deps/",
-          ~r"/node_modules/",
-          ~r"/\.git/"
+          ~r"(^|/)_build/",
+          ~r"(^|/)deps/",
+          ~r"(^|/)node_modules/",
+          ~r"(^|/)\.git/",
+          ~r"(^|/)test/"
         ]
       },
       checks: %{
@@ -318,6 +319,31 @@ The following checks are disabled by default:
 | `Warning.DebugLeftover` | Flags legitimate output primitives (`IO.puts`, `IO.write`). |
 | `Readability.Specs` | Noisy on behaviour callbacks and Mix-task `run/1`. |
 
+### Default Exclusions
+
+Beyond the checks above, MetaCredo also excludes whole directory trees from
+analysis by default via `files.excluded`:
+
+| Pattern | Why it is excluded |
+|---|---|
+| `~r"(^|/)_build/"` | Compiled build artifacts. |
+| `~r"(^|/)deps/"` | Third-party dependencies. |
+| `~r"(^|/)node_modules/"` | JavaScript dependencies. |
+| `~r"(^|/)\.git/"` | Version-control internals. |
+| `~r"(^|/)test/"` | Test trees (including nested `lib/test/` and umbrella `apps/*/test/`). |
+
+The `test/` exclusion keeps checks that are tuned for production code from
+firing on test-only patterns (hardcoded credentials, `assert_raise`, magic
+numbers, etc.). Paths that merely *contain* the substring `test` — such as
+`lib/latest/`, `lib/contest/`, or a root-level `test_helper.exs` — are **not**
+excluded. The `test/` exclusion is a *default*: explicitly targeting a path
+lifts it, so the tests are analysed. Add the tree back via `files.included`
+in `.metacredo.exs`, or target it explicitly on the command line:
+
+```bash
+$ mix metacredo --path test/
+$ mix metacredo --files-included test/
+```
 To enable any of these, add it to the `enabled` list (or remove it from
 `disabled`) in `.metacredo.exs`. For web projects, a good starting point is:
 

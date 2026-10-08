@@ -48,6 +48,48 @@ defmodule MetaCredo.ConfigTest do
       assert matches?.("/home/me/project/deps/foo/lib/bar.ex")
     end
 
+    test "default excludes the test/ tree" do
+      config = Config.default()
+
+      matches? = fn path ->
+        Enum.any?(config.files.excluded, fn
+          %Regex{} = r -> Regex.match?(r, path)
+          _ -> false
+        end)
+      end
+
+      # top-level, nested, and umbrella-app test trees
+      assert matches?.("test/foo_test.exs")
+      assert matches?.("test/metacredo/config_test.exs")
+      assert matches?.("lib/test/foo.ex")
+      assert matches?.("apps/my_app/test/my_app_test.exs")
+      assert matches?.("/home/me/project/test/foo_test.exs")
+      # the public helper is the single source of truth for this pattern
+      # (regexes don't implement structural equality, so compare sources)
+      assert Enum.any?(config.files.excluded, fn
+               %Regex{source: source} -> source == Config.test_exclusion_pattern().source
+               _ -> false
+             end)
+    end
+
+    test "default test exclusion does not match paths merely containing \"test\"" do
+      config = Config.default()
+
+      matches? = fn path ->
+        Enum.any?(config.files.excluded, fn
+          %Regex{} = r -> Regex.match?(r, path)
+          _ -> false
+        end)
+      end
+
+      # "latest"/"contest" contain the substring "test" but are not the test tree
+      refute matches?.("lib/latest/foo.ex")
+      refute matches?.("lib/contest/foo.ex")
+      refute matches?.("lib/metacredo/testable.ex")
+      # a file named test_helper.exs at the root is not inside a test/ directory
+      refute matches?.("test_helper.exs")
+    end
+
     test "default includes disabled checks for error handling and unused operations" do
       disabled = Config.default_disabled_checks()
       assert MetaCredo.Check.Warning.MissingErrorHandling in disabled
