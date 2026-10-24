@@ -17,6 +17,15 @@ defmodule MetaCredo.Analysis.DuplicationTest do
       assert result.clone_type == :type_i
     end
 
+    test "detects renamed clone in maps (Type II)" do
+      {:ok, sf1} = MetaCredo.SourceFile.parse("%{a: 1, b: 2}", "file1.ex", :elixir)
+      {:ok, sf2} = MetaCredo.SourceFile.parse("%{x: 10, y: 20}", "file2.ex", :elixir)
+
+      assert {:ok, result} = Duplication.detect(sf1.document, sf2.document)
+      assert result.duplicate?
+      assert result.clone_type == :type_ii
+    end
+
     test "detects no duplication for different ASTs" do
       doc1 = Document.new(@int42, :elixir)
       doc2 = Document.new(@str_hello, :elixir)
@@ -68,6 +77,18 @@ defmodule MetaCredo.Analysis.DuplicationTest do
 
       assert {:ok, groups} = Duplication.detect_in_list(docs)
       assert is_list(groups)
+    end
+
+    test "handles documents containing maps without crashing" do
+      {:ok, sf1} = MetaCredo.SourceFile.parse("%{a: 1, b: 2}", "file1.ex", :elixir)
+      {:ok, sf2} = MetaCredo.SourceFile.parse("%{c: 3, d: 4}", "file2.ex", :elixir)
+      {:ok, sf3} = MetaCredo.SourceFile.parse("x = 42", "file3.ex", :elixir)
+
+      assert {:ok, groups} =
+               Duplication.detect_in_list([sf1.document, sf2.document, sf3.document])
+
+      assert length(groups) == 1
+      assert hd(groups).clone_type == :type_ii
     end
   end
 

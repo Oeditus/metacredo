@@ -94,7 +94,12 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   """
   @spec normalized(AST.meta_ast()) :: String.t()
   def normalized(ast) do
-    normalized_ast = normalize_ast(ast)
+    normalized_ast =
+      try do
+        normalize_ast(ast)
+      rescue
+        _ -> ast
+      end
 
     :crypto.hash(:sha256, inspect(normalized_ast))
     |> Base.encode16()
@@ -119,8 +124,12 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   """
   @spec tokens(AST.meta_ast()) :: [atom()]
   def tokens(ast) do
-    extract_tokens(ast, [])
-    |> Enum.reverse()
+    try do
+      extract_tokens(ast, [])
+      |> Enum.reverse()
+    rescue
+      _ -> []
+    end
   end
 
   @doc """
@@ -148,6 +157,11 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
 
   # Private functions
 
+  @location_keys [:line, :column, :file, :end_line, :end_column, :start_line, :start_column]
+
+  defp clean_meta(meta) when is_list(meta), do: Keyword.drop(meta, @location_keys)
+  defp clean_meta(meta), do: meta
+
   # Normalize an AST by replacing variable names and literal values with placeholders
   # 3-tuple format: {type, meta, value_or_children}
   defp normalize_ast({:variable, _meta, _name}), do: {:variable, [], :_}
@@ -158,11 +172,11 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   end
 
   defp normalize_ast({:binary_op, meta, [left, right]}) do
-    {:binary_op, meta, [normalize_ast(left), normalize_ast(right)]}
+    {:binary_op, clean_meta(meta), [normalize_ast(left), normalize_ast(right)]}
   end
 
   defp normalize_ast({:unary_op, meta, [operand]}) do
-    {:unary_op, meta, [normalize_ast(operand)]}
+    {:unary_op, clean_meta(meta), [normalize_ast(operand)]}
   end
 
   defp normalize_ast({:function_call, _meta, args}) when is_list(args) do
@@ -170,7 +184,7 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   end
 
   defp normalize_ast({:conditional, meta, [cond_expr, then_branch, else_branch]}) do
-    {:conditional, meta,
+    {:conditional, clean_meta(meta),
      [
        normalize_ast(cond_expr),
        normalize_ast(then_branch),
@@ -178,67 +192,98 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
      ]}
   end
 
+  defp normalize_ast({:conditional, meta, [cond_expr, then_branch]}) do
+    {:conditional, clean_meta(meta), [normalize_ast(cond_expr), normalize_ast(then_branch)]}
+  end
+
   defp normalize_ast({:early_return, meta, [value]}) do
-    {:early_return, meta, [normalize_ast(value)]}
+    {:early_return, clean_meta(meta), [normalize_ast(value)]}
   end
 
   defp normalize_ast({:block, meta, statements}) when is_list(statements) do
-    {:block, meta, Enum.map(statements, &normalize_ast/1)}
+    {:block, clean_meta(meta), Enum.map(statements, &normalize_ast/1)}
   end
 
   defp normalize_ast({:assignment, meta, [target, value]}) do
-    {:assignment, meta, [normalize_ast(target), normalize_ast(value)]}
+    {:assignment, clean_meta(meta), [normalize_ast(target), normalize_ast(value)]}
   end
 
   defp normalize_ast({:inline_match, meta, [pattern, value]}) do
-    {:inline_match, meta, [normalize_ast(pattern), normalize_ast(value)]}
+    {:inline_match, clean_meta(meta), [normalize_ast(pattern), normalize_ast(value)]}
   end
 
   defp normalize_ast({:tuple, meta, elements}) when is_list(elements) do
-    {:tuple, meta, Enum.map(elements, &normalize_ast/1)}
+    {:tuple, clean_meta(meta), Enum.map(elements, &normalize_ast/1)}
   end
 
   defp normalize_ast({:list, meta, elements}) when is_list(elements) do
-    {:list, meta, Enum.map(elements, &normalize_ast/1)}
+    {:list, clean_meta(meta), Enum.map(elements, &normalize_ast/1)}
   end
 
   defp normalize_ast({:map, meta, pairs}) when is_list(pairs) do
-    {:map, meta, Enum.map(pairs, fn {k, v} -> {normalize_ast(k), normalize_ast(v)} end)}
+    normalized_pairs =
+      Enum.map(pairs, fn
+        {:pair, pmeta, [k, v]} ->
+          {:pair, clean_meta(pmeta), [normalize_ast(k), normalize_ast(v)]}
+
+        {:pair, pmeta, children} when is_list(children) ->
+          {:pair, clean_meta(pmeta), Enum.map(children, &normalize_ast/1)}
+
+        {k, v} ->
+          {normalize_ast(k), normalize_ast(v)}
+
+        other ->
+          normalize_ast(other)
+      end)
+
+    {:map, clean_meta(meta), normalized_pairs}
+  end
+
+  defp normalize_ast({:pair, meta, [k, v]}) do
+    {:pair, clean_meta(meta), [normalize_ast(k), normalize_ast(v)]}
+  end
+
+  defp normalize_ast({:pair, meta, children}) when is_list(children) do
+    {:pair, clean_meta(meta), Enum.map(children, &normalize_ast/1)}
+  end
+
+  defp normalize_ast({k, v}) do
+    {normalize_ast(k), normalize_ast(v)}
   end
 
   # M2.2 Extended layer (3-tuple format)
   defp normalize_ast({:loop, meta, children}) when is_list(children) do
-    {:loop, meta, Enum.map(children, &normalize_ast/1)}
+    {:loop, clean_meta(meta), Enum.map(children, &normalize_ast/1)}
   end
 
   defp normalize_ast({:lambda, meta, body}) when is_list(body) do
-    normalized_meta = Keyword.put(meta, :params, :_) |> Keyword.put(:captures, :_)
+    normalized_meta = Keyword.put(meta, :params, :_) |> Keyword.put(:captures, :_) |> clean_meta()
     {:lambda, normalized_meta, Enum.map(body, &normalize_ast/1)}
   end
 
   defp normalize_ast({:lambda, meta, body}) do
-    normalized_meta = Keyword.put(meta, :params, :_) |> Keyword.put(:captures, :_)
+    normalized_meta = Keyword.put(meta, :params, :_) |> Keyword.put(:captures, :_) |> clean_meta()
     {:lambda, normalized_meta, [normalize_ast(body)]}
   end
 
   defp normalize_ast({:collection_op, meta, children}) when is_list(children) do
-    {:collection_op, meta, Enum.map(children, &normalize_ast/1)}
+    {:collection_op, clean_meta(meta), Enum.map(children, &normalize_ast/1)}
   end
 
   defp normalize_ast({:pattern_match, meta, [scrutinee | arms]}) when is_list(arms) do
     normalized_arms = Enum.map(arms, &normalize_ast/1)
-    {:pattern_match, meta, [normalize_ast(scrutinee) | normalized_arms]}
+    {:pattern_match, clean_meta(meta), [normalize_ast(scrutinee) | normalized_arms]}
   end
 
   defp normalize_ast({:match_arm, meta, body_list}) when is_list(body_list) do
     normalized_body = Enum.map(body_list, &normalize_ast/1)
-    {:match_arm, Keyword.delete(meta, :pattern), normalized_body}
+    {:match_arm, clean_meta(Keyword.delete(meta, :pattern)), normalized_body}
   end
 
   defp normalize_ast({:exception_handling, meta, [try_block, handlers, finally_block]}) do
     normalized_handlers = Enum.map(handlers, &normalize_ast/1)
 
-    {:exception_handling, meta,
+    {:exception_handling, clean_meta(meta),
      [
        normalize_ast(try_block),
        normalized_handlers,
@@ -247,11 +292,11 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   end
 
   defp normalize_ast({:async_operation, meta, body}) when is_list(body) do
-    {:async_operation, meta, Enum.map(body, &normalize_ast/1)}
+    {:async_operation, clean_meta(meta), Enum.map(body, &normalize_ast/1)}
   end
 
   defp normalize_ast({:async_operation, meta, [operation]}) do
-    {:async_operation, meta, [normalize_ast(operation)]}
+    {:async_operation, clean_meta(meta), [normalize_ast(operation)]}
   end
 
   # M2.2s Structural/Organizational layer (3-tuple format)
@@ -287,15 +332,16 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   end
 
   defp normalize_ast({:attribute_access, meta, [receiver]}) do
-    {:attribute_access, Keyword.put(meta, :attribute, :_), [normalize_ast(receiver)]}
+    {:attribute_access, clean_meta(Keyword.put(meta, :attribute, :_)), [normalize_ast(receiver)]}
   end
 
   defp normalize_ast({:attribute_access, meta, children}) when is_list(children) do
-    {:attribute_access, Keyword.put(meta, :attribute, :_), Enum.map(children, &normalize_ast/1)}
+    {:attribute_access, clean_meta(Keyword.put(meta, :attribute, :_)),
+     Enum.map(children, &normalize_ast/1)}
   end
 
   defp normalize_ast({:augmented_assignment, meta, [target, value]}) do
-    {:augmented_assignment, meta, [normalize_ast(target), normalize_ast(value)]}
+    {:augmented_assignment, clean_meta(meta), [normalize_ast(target), normalize_ast(value)]}
   end
 
   defp normalize_ast({:property, meta, children}) when is_list(children) do
@@ -305,7 +351,7 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
         child -> normalize_ast(child)
       end)
 
-    {:property, Keyword.put(meta, :name, :_), normalized_children}
+    {:property, clean_meta(Keyword.put(meta, :name, :_)), normalized_children}
   end
 
   # M2.3 Native layer - preserve structure hints but not data
@@ -313,6 +359,11 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
     lang = Keyword.get(meta, :language)
     hint = Keyword.get(meta, :hint)
     {:language_specific, [language: lang, hint: hint], [:_]}
+  end
+
+  # Generic 3-tuple node fallback (e.g., unhandled AST nodes with list children)
+  defp normalize_ast({type, meta, children}) when is_atom(type) and is_list(children) do
+    {type, clean_meta(meta), Enum.map(children, &normalize_ast/1)}
   end
 
   # Handle plain lists (e.g., container bodies)
@@ -365,6 +416,12 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
     end
   end
 
+  defp extract_tokens({:conditional, _meta, [cond_expr, then_branch]}, acc) do
+    acc = [:conditional | acc]
+    acc = extract_tokens(cond_expr, acc)
+    extract_tokens(then_branch, acc)
+  end
+
   defp extract_tokens({:early_return, _meta, [value]}, acc) do
     acc = [:early_return | acc]
     extract_tokens(value, acc)
@@ -400,10 +457,37 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   defp extract_tokens({:map, _meta, pairs}, acc) when is_list(pairs) do
     acc = [:map | acc]
 
-    Enum.reduce(pairs, acc, fn {k, v}, a ->
-      a = extract_tokens(k, a)
-      extract_tokens(v, a)
+    Enum.reduce(pairs, acc, fn
+      {:pair, _pmeta, [k, v]}, a ->
+        a = extract_tokens(k, a)
+        extract_tokens(v, a)
+
+      {:pair, _pmeta, children}, a when is_list(children) ->
+        Enum.reduce(children, a, fn child, acc_inner -> extract_tokens(child, acc_inner) end)
+
+      {k, v}, a ->
+        a = extract_tokens(k, a)
+        extract_tokens(v, a)
+
+      other, a ->
+        extract_tokens(other, a)
     end)
+  end
+
+  defp extract_tokens({:pair, _meta, [k, v]}, acc) do
+    acc = [:pair | acc]
+    acc = extract_tokens(k, acc)
+    extract_tokens(v, acc)
+  end
+
+  defp extract_tokens({:pair, _meta, children}, acc) when is_list(children) do
+    acc = [:pair | acc]
+    Enum.reduce(children, acc, fn child, a -> extract_tokens(child, a) end)
+  end
+
+  defp extract_tokens({k, v}, acc) do
+    acc = extract_tokens(k, acc)
+    extract_tokens(v, acc)
   end
 
   # M2.2 Extended (3-tuple format)
@@ -479,6 +563,12 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
     tokens = [lang, :language_specific]
     tokens = if hint, do: [hint | tokens], else: tokens
     tokens ++ acc
+  end
+
+  # Generic 3-tuple fallback
+  defp extract_tokens({type, _meta, children}, acc) when is_atom(type) and is_list(children) do
+    acc = [type | acc]
+    Enum.reduce(children, acc, fn child, a -> extract_tokens(child, a) end)
   end
 
   # Handle plain lists (e.g., container bodies)
