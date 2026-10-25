@@ -11,6 +11,10 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
 
       Move blocking work to a cached value, background task, or async
       middleware pattern.
+
+      Uses operation-domain metadata when available, otherwise matches known
+      blocking APIs. Unknown application calls and cache operations are not
+      assumed to perform blocking I/O.
       """,
       examples: [
         elixir: [
@@ -32,10 +36,33 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
       ]
     ]
 
-  @blocking_operations ~W(
-    get post query find read write
-    sleep wait fetch load download
+  @http_operations ~W(request get post put patch delete head options)
+  @repo_operations ~W(
+    all one get get_by aggregate exists? insert insert_all update update_all
+    delete delete_all insert_or_update preload reload query query_many transaction checkout
   )
+  @blocking_apis %{
+    "HTTPoison" => @http_operations,
+    "HTTPotion" => @http_operations,
+    "Req" => @http_operations,
+    "Tesla" => @http_operations,
+    "Finch" => ~W(request),
+    "httpc" => ~W(request),
+    "Ecto.Adapters.SQL" => ~W(query query_many),
+    "File" => ~W(
+      read write open close copy cp cp_r rename rm rm_rf mkdir mkdir_p rmdir
+      ls stat lstat touch chmod chown chgrp read_link ln ln_s cwd cd
+    ),
+    "file" => ~W(
+      read_file write_file open close read write pread pwrite copy rename delete
+      list_dir read_file_info make_dir del_dir
+    ),
+    "IO" => ~W(read binread write binwrite gets puts),
+    "Process" => ~W(sleep),
+    "timer" => ~W(sleep),
+    "Task" => ~W(await await_many),
+    "GenServer" => ~W(call)
+  }
 
   @middleware_functions ~W(call init plug)
 
@@ -79,10 +106,10 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
       case Keyword.get(meta, :op_kind) do
         op_kind when is_list(op_kind) ->
           domain = Keyword.get(op_kind, :domain)
-          domain in [:db, :http, :file, :cache, :external_api]
+          domain in [:db, :http, :file, :external_api]
 
         nil ->
-          has_blocking_indicator?(fn_lower)
+          known_blocking_api?(fn_name)
       end
 
     # `Map.fetch!/2` / `Map.get/2` are Metastatic's encoding of *field access*
@@ -110,12 +137,22 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
 
   defp traverse(node, acc, _source_file), do: {node, acc}
 
-  defp has_blocking_indicator?(fn_lower) do
-    # `Map.fetch!/2` and `Map.get/2` are how Metastatic encodes *field access*
-    # (`conn.assigns`), not blocking I/O -- matching them flagged every plug
-    # that reads a struct field.
-    not field_access_sentinel?(fn_lower) and
-      Enum.any?(@blocking_operations, &String.contains?(fn_lower, &1))
+  defp known_blocking_api?(fn_name) do
+    # Match complete module/function names, not substrings such as "get" in
+    # an arbitrary application getter. Repo is conventionally app-namespaced.
+    parts = fn_name |> String.trim_leading(":") |> String.split(".")
+    function = parts |> List.last() |> String.trim_trailing("!")
+    module_parts = Enum.drop(parts, -1)
+    module = Enum.join(module_parts, ".")
+
+    operations =
+      if List.last(module_parts) == "Repo" do
+        @repo_operations
+      else
+        Map.get(@blocking_apis, module, [])
+      end
+
+    function in operations
   end
 
   # Metastatic's encoding of *field access* (`conn.assigns`), matched against

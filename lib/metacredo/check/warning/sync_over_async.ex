@@ -146,8 +146,6 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
     Enum.any?(@offload_indicators, &String.contains?(name, &1))
   end
 
-  defp offload_call?(_), do: false
-
   defp blocking_call?(meta, fn_name) do
     fn_lower = String.downcase(fn_name)
 

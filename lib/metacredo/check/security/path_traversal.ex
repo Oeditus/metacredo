@@ -185,8 +185,6 @@ defmodule MetaCredo.Check.Security.PathTraversal do
     Enum.any?(patterns, &String.contains?(func_lower, String.downcase(&1)))
   end
 
-  defp matches_any?(_func_name, _patterns), do: false
-
   defp contains_user_input?(node) do
     case node do
       {:variable, _meta, name} when is_binary(name) ->

@@ -151,8 +151,6 @@ defmodule MetaCredo.Check.Warning.MissingThrottle do
       Enum.any?(segments, &(&1 in @api_context_indicators))
   end
 
-  defp api_endpoint_name?(_), do: false
-
   defp predicate_name?(func_name) do
     String.ends_with?(func_name, "?") or
       Enum.any?(~W(has is get_ find_ check_), &String.starts_with?(func_name, &1))

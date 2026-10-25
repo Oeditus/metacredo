@@ -92,8 +92,6 @@ defmodule MetaCredo.Check.Readability.LargeNumbers do
       source_mentions_separated?(source_file, value)
   end
 
-  defp has_separator?(_meta, _value, _source_file), do: false
-
   defp source_line_has_separator?(meta, source_file) do
     with line when is_integer(line) <- CheckUtils.line_of(meta),
          text when is_binary(text) <- SourceFile.line_at(source_file, line) do
@@ -104,13 +102,7 @@ defmodule MetaCredo.Check.Readability.LargeNumbers do
   end
 
   defp source_mentions_separated?(%SourceFile{} = source_file, value) do
-    case SourceFile.source(source_file) do
-      source when is_binary(source) ->
-        String.contains?(source, format_with_underscores(value))
-
-      _ ->
-        false
-    end
+    String.contains?(SourceFile.source(source_file), format_with_underscores(value))
   end
 
   defp digit_count(value) do
