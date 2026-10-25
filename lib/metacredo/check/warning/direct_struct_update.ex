@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects direct struct field updates (e.g. `%User{user | name: "new"}`)
@@ -41,6 +42,30 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
     issues
   end
 
+  # `%User{user | field: value}` is emitted by the Elixir adapter as
+  # `%`(User, Map.merge(user, Map.new([...]))) -- not as `:record_update`.
+  # The struct-update shape is the `Map.merge/2` whose first argument is a
+  # bare variable, so that is what we match.
+  defp traverse(
+         {:function_call, meta, [_struct_name, merge_call]} = node,
+         issues,
+         source_file
+       )
+       when is_list(meta) do
+    if Keyword.get(meta, :name) == "%" and struct_update_merge?(merge_call) do
+      issue =
+        format_issue(source_file,
+          message: "Direct struct update bypasses validation -- use a changeset function instead",
+          trigger: "%",
+          line_no: CheckUtils.line_of(meta)
+        )
+
+      {node, [issue | issues]}
+    else
+      {node, issues}
+    end
+  end
+
   # record_update: {:record_update, [name: "User", ...], [base | field_pairs]}
   # This matches %User{user | field: value} syntax in MetaAST
   defp traverse(
@@ -50,7 +75,7 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
        )
        when is_list(meta) do
     name = Keyword.get(meta, :name, "")
-    line = Keyword.get(meta, :line)
+    line = CheckUtils.line_of(meta)
 
     issue =
       format_issue(source_file,
@@ -72,7 +97,7 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
        )
        when is_list(meta) do
     if looks_like_struct_update?(base) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -101,4 +126,9 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
   end
 
   defp looks_like_struct_update?(_), do: false
+
+  defp struct_update_merge?({:function_call, meta, [_base | _]}) when is_list(meta),
+    do: Keyword.get(meta, :name) == "Map.merge"
+
+  defp struct_update_merge?(_), do: false
 end

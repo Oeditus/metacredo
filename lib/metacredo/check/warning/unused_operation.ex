@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :normal,
+    confidence: :high,
     tags: [:returns],
     explanations: [
       check: """
@@ -14,9 +15,11 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
         elixir: [
           wrong: """
           # The uppercased string is computed and immediately discarded
-          def normalize(name) do
-            String.upcase(name)  # result thrown away!
-            String.trim(name)
+          defmodule Names do
+            def normalize(name) do
+              String.upcase(name)
+              String.trim(name)
+            end
           end
           """,
           correct: """
@@ -31,6 +34,9 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
       ]
     ]
 
+  # Offset from the end of a statement list: the last statement's index.
+  @last 2
+
   @impl true
   def run(%SourceFile{} = source_file, _params) do
     {_, issues} =
@@ -41,40 +47,47 @@ defmodule MetaCredo.Check.Warning.UnusedOperation do
     issues
   end
 
-  # Match blocks and check non-last, non-assigned function_call statements
+  # Match blocks and check non-last, non-assigned function_call statements.
+  #
+  # A function body arrives as a bare statement list rather than a `:block`
+  # node, so both shapes are handled.
   defp traverse({:block, _meta, statements} = node, issues, source_file)
        when is_list(statements) and length(statements) > 1 do
-    non_last = Enum.slice(statements, 0..(length(statements) - 2)//1)
+    {node, check_statements(statements, issues, source_file)}
+  end
 
-    new_issues =
-      Enum.reduce(non_last, issues, fn
-        {:function_call, call_meta, _args}, acc when is_list(call_meta) ->
-          fn_name = to_string(Keyword.get(call_meta, :name, ""))
-
-          if side_effect_only?(fn_name) do
-            acc
-          else
-            line = Keyword.get(call_meta, :line)
-
-            issue =
-              format_issue(source_file,
-                message:
-                  "Result of '#{fn_name}' is unused -- assign the result or use it as the return value",
-                trigger: fn_name,
-                line_no: line
-              )
-
-            [issue | acc]
-          end
-
-        _other, acc ->
-          acc
-      end)
-
-    {node, new_issues}
+  defp traverse({:function_def, meta, statements} = node, issues, source_file)
+       when is_list(meta) and is_list(statements) and length(statements) > 1 do
+    {node, check_statements(statements, issues, source_file)}
   end
 
   defp traverse(node, issues, _source_file), do: {node, issues}
+
+  defp check_statements(statements, issues, source_file) do
+    non_last = Enum.slice(statements, 0..(length(statements) - @last)//1)
+
+    Enum.reduce(non_last, issues, fn
+      {:function_call, call_meta, _args}, acc when is_list(call_meta) ->
+        fn_name = to_string(Keyword.get(call_meta, :name, ""))
+
+        if side_effect_only?(fn_name) do
+          acc
+        else
+          issue =
+            format_issue(source_file,
+              message:
+                "Result of '#{fn_name}' is unused -- assign the result or use it as the return value",
+              trigger: fn_name,
+              line_no: CheckUtils.line_of(call_meta)
+            )
+
+          [issue | acc]
+        end
+
+      _other, acc ->
+        acc
+    end)
+  end
 
   @side_effect_fns ~W(
     send put_in update_in Process.send Agent.update

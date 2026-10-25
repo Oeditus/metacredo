@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Design.TagTodo do
   use MetaCredo.Check,
     category: :design,
     base_priority: :low,
+    confidence: :high,
     param_defaults: [include_source_scan: true, tags: ["TODO"]],
     explanations: [
       check: """
@@ -45,24 +46,36 @@ defmodule MetaCredo.Check.Design.TagTodo do
 
   alias MetaCredo.Check.Design.TagScan
 
+  # A check's own documentation necessarily contains a literal example of the
+  # tag it looks for, so reporting on its own source file is pure noise.
+  @own_source_files [
+    "tag_todo.ex",
+    "tag_fixme.ex",
+    "tag_scan.ex"
+  ]
+
   @impl true
   def run(%SourceFile{} = source_file, params) do
-    include_source = params_get(params, :include_source_scan)
-    regex = params_get(params, :tags) |> TagScan.compile_tags()
+    if Path.basename(source_file.filename || "") in @own_source_files do
+      []
+    else
+      include_source = params_get(params, :include_source_scan)
+      regex = params_get(params, :tags) |> TagScan.compile_tags()
 
-    {_, ast_issues} =
-      source_file
-      |> SourceFile.ast()
-      |> AST.prewalk([], fn node, acc -> traverse(node, acc, source_file, regex) end)
+      {_, ast_issues} =
+        source_file
+        |> SourceFile.ast()
+        |> AST.prewalk([], fn node, acc -> traverse(node, acc, source_file, regex) end)
 
-    source_issues =
-      if include_source do
-        scan_source_lines(source_file, regex)
-      else
-        []
-      end
+      source_issues =
+        if include_source do
+          scan_source_lines(source_file, regex)
+        else
+          []
+        end
 
-    deduplicate(ast_issues ++ source_issues)
+      deduplicate(ast_issues ++ source_issues)
+    end
   end
 
   defp traverse(
@@ -73,7 +86,7 @@ defmodule MetaCredo.Check.Design.TagTodo do
        )
        when is_list(meta) and is_binary(text) do
     if TagScan.matches?(regex, text) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

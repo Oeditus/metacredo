@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.IncorrectAuthorization do
   use MetaCredo.Check,
     category: :security,
     base_priority: :high,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects incorrect authorization patterns (CWE-863).
@@ -71,7 +73,7 @@ defmodule MetaCredo.Check.Security.IncorrectAuthorization do
   defp traverse({:conditional, meta, [condition | _branches]} = node, issues, source_file)
        when is_list(meta) do
     if role_only_check?(condition) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       {node,
        [
@@ -251,7 +253,7 @@ defmodule MetaCredo.Check.Security.IncorrectAuthorization do
 
   defp extract_line(node) do
     case node do
-      {_, meta, _} when is_list(meta) -> Keyword.get(meta, :line)
+      {_, meta, _} when is_list(meta) -> CheckUtils.line_of(meta)
       _ -> nil
     end
   end

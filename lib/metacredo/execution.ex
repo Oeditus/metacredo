@@ -4,7 +4,7 @@ defmodule MetaCredo.Execution do
   issue collection, and inline-disable filtering.
   """
 
-  alias MetaCredo.{Config, Issue, SourceFile, Sources}
+  alias MetaCredo.{Baseline, Config, Issue, SourceFile, Sources}
   alias Metastatic.AST
 
   require Logger
@@ -24,7 +24,10 @@ defmodule MetaCredo.Execution do
           only: [atom()],
           ignore: [atom()],
           files_included: [String.t()] | nil,
-          files_excluded: [term()] | nil
+          files_excluded: [term()] | nil,
+          lift_test_exclusion: boolean(),
+          no_db: boolean(),
+          no_user: boolean()
         ]
 
   @doc """
@@ -39,11 +42,17 @@ defmodule MetaCredo.Execution do
   - `:ignore` - Skip checks in these categories
   - `:files_included` - Override file include patterns
   - `:files_excluded` - Override file exclude patterns
+  - `:lift_test_exclusion` - Whether an explicit `:files_included` should
+    lift the default `test/` exclusion (default: `true`). Diff mode sets
+    this to `false`: it supplies a *machine-derived* file list, not a
+    deliberate user opt-in, so test files must stay excluded exactly as
+    they are for a normal run.
 
   When `:files_included` is given, the *default* `test/` exclusion is lifted
   so an explicitly targeted path (e.g. `--path test/`) is analysed; all other
   exclusions and any configured `excluded` patterns still apply. When
   `:files_excluded` is given it replaces the configured exclusions verbatim.
+  Set `lift_test_exclusion: false` to keep the `test/` exclusion in force.
   """
   @spec run(run_opts()) :: report()
   def run(opts \\ []) do
@@ -70,7 +79,13 @@ defmodule MetaCredo.Execution do
       end)
       |> filter_disabled_by_comments(source_files)
       |> maybe_filter_strict(opts[:strict])
+      |> maybe_filter_confidence(opts[:min_confidence])
+      |> maybe_filter_changed_lines(opts[:changed_lines])
       |> sort_issues()
+
+    # A baseline records the issues that already existed; only *new* ones are
+    # reported. Writing a baseline captures the current state instead.
+    issues = apply_baseline(issues, opts)
 
     elapsed = System.monotonic_time(:millisecond) - start
 
@@ -122,8 +137,10 @@ defmodule MetaCredo.Execution do
   end
 
   defp lift_default_test_exclusion(base_excluded, opts) do
+    lift? = Keyword.get(opts, :lift_test_exclusion, true)
+
     case Keyword.fetch(opts, :files_included) do
-      {:ok, included} when is_list(included) ->
+      {:ok, included} when is_list(included) and lift? ->
         test_pattern = Config.test_exclusion_pattern()
         Enum.reject(base_excluded, &same_pattern?(&1, test_pattern))
 
@@ -138,69 +155,57 @@ defmodule MetaCredo.Execution do
   defp same_pattern?(a, b), do: a == b
 
   defp resolve_checks(config, opts) do
-    checks = Config.enabled_checks(config)
+    config
+    |> Config.enabled_checks()
+    |> reject_umbrella_switches(config, opts)
+    |> filter_categories(opts)
+  end
 
+  # Applies the `--no-db` / `--no-user` umbrella switches, which can come
+  # either from the CLI opts or from the config file.
+  defp reject_umbrella_switches(checks, config, opts) do
     no_db? = opts[:no_db] || Map.get(config, :no_db, false)
     no_user? = opts[:no_user] || Map.get(config, :no_user, false)
 
-    checks =
-      if no_db? do
-        Enum.reject(checks, fn {mod, _} -> db_check?(mod) end)
-      else
-        checks
-      end
-
-    checks =
-      if no_user? do
-        Enum.reject(checks, fn {mod, _} -> user_check?(mod) end)
-      else
-        checks
-      end
-
-    checks =
-      case opts[:only] do
-        nil -> checks
-        [] -> checks
-        categories -> Enum.filter(checks, fn {mod, _} -> mod.category() in categories end)
-      end
-
-    case opts[:ignore] do
-      nil -> checks
-      [] -> checks
-      categories -> Enum.reject(checks, fn {mod, _} -> mod.category() in categories end)
-    end
+    checks
+    |> reject_if(no_db?, &db_check?/1)
+    |> reject_if(no_user?, &user_check?/1)
   end
 
-  defp db_check?(mod) do
-    tags = if function_exported?(mod, :tags, 0), do: mod.tags(), else: []
+  defp reject_if(checks, true, predicate),
+    do: Enum.reject(checks, fn {mod, _} -> predicate.(mod) end)
 
-    :db in tags or
-      String.contains?(to_string(mod), [
-        "SQLInjection",
-        "NPlusOneQuery",
-        "MissingPreload",
-        "Database"
-      ])
+  defp reject_if(checks, _false, _predicate), do: checks
+
+  # Applies `--only` then `--ignore`, both of which select by category.
+  defp filter_categories(checks, opts) do
+    checks
+    |> keep_categories(opts[:only])
+    |> drop_categories(opts[:ignore])
   end
 
-  defp user_check?(mod) do
-    tags = if function_exported?(mod, :tags, 0), do: mod.tags(), else: []
+  defp keep_categories(checks, categories) when categories in [nil, []], do: checks
 
-    :user in tags or :user_input in tags or
-      String.contains?(to_string(mod), [
-        "InputValidation",
-        "XSS",
-        "CSRF",
-        "PathTraversal",
-        "DirectObjectReference",
-        "FileUpload",
-        "SSRF",
-        "SensitiveData",
-        "InlineJavascript",
-        "Authentication",
-        "Authorization",
-        "ParameterPatternMatching"
-      ])
+  defp keep_categories(checks, categories),
+    do: Enum.filter(checks, fn {mod, _} -> mod.category() in categories end)
+
+  defp drop_categories(checks, categories) when categories in [nil, []], do: checks
+
+  defp drop_categories(checks, categories),
+    do: Enum.reject(checks, fn {mod, _} -> mod.category() in categories end)
+
+  # Umbrella switches are driven *purely* by declared tags. Matching on
+  # module-name substrings (the previous implementation) is precisely the
+  # unsound heuristic that `Config.default_disabled_checks/0` documents as
+  # the reason for disabling seven checks -- a linter must not ship the
+  # anti-pattern it warns about. Every DB check declares `tags: [:db]` and
+  # every user-input check declares `tags: [:user_input]`.
+  defp db_check?(mod), do: tag?(mod, :db)
+
+  defp user_check?(mod), do: tag?(mod, :user_input) or tag?(mod, :user)
+
+  defp tag?(mod, tag) do
+    function_exported?(mod, :tags, 0) and tag in mod.tags()
   end
 
   defp run_checks_on_file(%SourceFile{} = source_file, checks) do
@@ -209,9 +214,9 @@ defmodule MetaCredo.Execution do
         check_module.run(source_file, params)
       rescue
         e ->
-          Logger.warning(
+          Logger.warning(fn ->
             "Check #{inspect(check_module)} failed on #{source_file.filename}: #{inspect(e)}"
-          )
+          end)
 
           []
       end
@@ -269,7 +274,9 @@ defmodule MetaCredo.Execution do
               {:ok, check_ref, :this_file} ->
                 {node, [{sf.filename, :all_lines, check_ref} | acc]}
 
-              :ignore ->
+              # `parse_disable_comment/1` only ever returns these three shapes,
+              # but an explicit catch-all keeps the match total if it grows.
+              _ ->
                 {node, acc}
             end
 
@@ -291,7 +298,7 @@ defmodule MetaCredo.Execution do
         {:ok, check_ref, :this_file} ->
           [{filename, :all_lines, check_ref}]
 
-        :ignore ->
+        _ ->
           []
       end
     end)
@@ -322,6 +329,48 @@ defmodule MetaCredo.Execution do
   end
 
   defp maybe_filter_strict(issues, _), do: issues
+
+  # `--min-confidence high` keeps only AST-structural findings, dropping the
+  # name-substring heuristics that produce most of the noise.
+  defp maybe_filter_confidence(issues, nil), do: issues
+
+  defp maybe_filter_confidence(issues, min_confidence) do
+    floor = Issue.confidence_value(min_confidence)
+
+    Enum.filter(issues, fn issue ->
+      Issue.confidence_value(issue.confidence) >= floor
+    end)
+  end
+
+  # `--diff-lines`: keep only findings on lines the diff actually touched.
+  # Issues without a line number cannot be attributed to a hunk, so they are
+  # dropped rather than reported against the whole file.
+  defp maybe_filter_changed_lines(issues, nil), do: issues
+
+  defp maybe_filter_changed_lines(issues, changed_lines) do
+    Enum.filter(issues, fn issue ->
+      case Map.get(changed_lines, issue.filename) do
+        nil -> false
+        lines -> issue.line_no != nil and MapSet.member?(lines, issue.line_no)
+      end
+    end)
+  end
+
+  # -- Baseline --
+
+  defp apply_baseline(issues, opts) do
+    cond do
+      path = opts[:write_baseline] ->
+        Baseline.write(path, issues)
+        issues
+
+      path = opts[:baseline] ->
+        Baseline.filter(issues, path)
+
+      true ->
+        issues
+    end
+  end
 
   defp sort_issues(issues) do
     Enum.sort_by(issues, fn issue ->

@@ -85,8 +85,14 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
           has_blocking_indicator?(fn_lower)
       end
 
+    # `Map.fetch!/2` / `Map.get/2` are Metastatic's encoding of *field access*
+    # (`conn.assigns`), not blocking I/O. The adapter may attach an `op_kind`
+    # to them, so the sentinel check has to run regardless of which branch
+    # above decided `blocking?`.
+    blocking? = blocking? and not field_access_sentinel?(fn_lower)
+
     if blocking? do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -105,6 +111,16 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
   defp traverse(node, acc, _source_file), do: {node, acc}
 
   defp has_blocking_indicator?(fn_lower) do
-    Enum.any?(@blocking_operations, &String.contains?(fn_lower, &1))
+    # `Map.fetch!/2` and `Map.get/2` are how Metastatic encodes *field access*
+    # (`conn.assigns`), not blocking I/O -- matching them flagged every plug
+    # that reads a struct field.
+    not field_access_sentinel?(fn_lower) and
+      Enum.any?(@blocking_operations, &String.contains?(fn_lower, &1))
   end
+
+  # Metastatic's encoding of *field access* (`conn.assigns`), matched against
+  # the downcased function name.
+  @field_access_sentinels ~W(map.fetch! map.get map.fetch elem get_in)
+
+  defp field_access_sentinel?(fn_lower), do: fn_lower in @field_access_sentinels
 end

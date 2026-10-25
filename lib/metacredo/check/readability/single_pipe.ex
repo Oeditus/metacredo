@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.SinglePipe do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :low,
+    confidence: :high,
     explanations: [
       check: """
       Detects single-step pipe chains (`value |> func`). A single pipe
@@ -41,7 +42,7 @@ defmodule MetaCredo.Check.Readability.SinglePipe do
 
     acc =
       if chain_len == 1 do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         issue =
           format_issue(source_file,
@@ -85,7 +86,8 @@ defmodule MetaCredo.Check.Readability.SinglePipe do
 
   # Collect all non-pipe children from a pipe chain
   defp collect_non_pipe_children({:pipe, _meta, [left, right]}) do
-    collect_non_pipe_children(left) ++ [right]
+    [right | collect_non_pipe_children(left)]
+    |> Enum.reverse()
   end
 
   defp collect_non_pipe_children(node), do: [node]

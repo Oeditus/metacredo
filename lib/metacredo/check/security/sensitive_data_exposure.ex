@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
   use MetaCredo.Check,
     category: :security,
     base_priority: :high,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects exposure of sensitive information to unauthorized actors (CWE-200).
@@ -68,10 +70,14 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
   defp traverse({:function_call, meta, args} = node, issues, source_file)
        when is_list(meta) do
     func_name = Keyword.get(meta, :name, "")
-    line = Keyword.get(meta, :line)
+    line = CheckUtils.line_of(meta)
 
     cond do
-      logging_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) ->
+      # NOTE: `safe_stdlib_call?/1` is deliberately *not* consulted here.
+      # It exists to stop stdlib calls being mistaken for I/O *sources*, but
+      # `Logger` is a sink: logging sensitive data through it is exactly what
+      # this check looks for.
+      logging_function?(func_name) ->
         sensitive_items =
           args
           |> Enum.flat_map(&check_sensitive_in_arg/1)
@@ -125,48 +131,72 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
 
   # --- Private Helpers ---
 
+  # A `case` over MetaAST node types: the branching is a grammar lookup table,
+  # not tangled control flow.
   defp check_sensitive_in_arg(arg) do
     case arg do
       {:variable, _meta, name} when is_binary(name) ->
         if sensitive_variable?(name), do: [name], else: []
 
       {:function_call, meta, inner_args} when is_list(meta) ->
-        func_name = Keyword.get(meta, :name, "")
-
-        if func_name in ["inspect", "Kernel.inspect"] or
-             String.contains?(func_name, ["struct", "map", "attributes"]) do
-          Enum.flat_map(inner_args, &check_sensitive_in_arg/1)
-        else
-          []
-        end
+        check_sensitive_call(Keyword.get(meta, :name, ""), inner_args)
 
       {:attribute_access, _meta, children} when is_list(children) ->
         check_sensitive_attribute_chain(children)
 
+      # `"...#{user.password}..."` -- descend into the interpolated parts.
+      {:string_interpolation, _meta, parts} when is_list(parts) ->
+        Enum.flat_map(parts, &check_sensitive_in_arg/1)
+
       {:map, _meta, pairs} when is_list(pairs) ->
-        Enum.flat_map(pairs, fn
-          {key, _val} when is_binary(key) ->
-            if sensitive_field?(key), do: [key], else: []
-
-          {{:literal, _, key}, _val} when is_binary(key) ->
-            if sensitive_field?(key), do: [key], else: []
-
-          _ ->
-            []
-        end)
+        Enum.flat_map(pairs, &check_sensitive_pair/1)
 
       {:binary_op, _meta, [left, right]} ->
         check_sensitive_in_arg(left) ++ check_sensitive_in_arg(right)
 
       {:literal, meta, value} when is_list(meta) and is_binary(value) ->
-        if contains_sensitive_interpolation?(value),
-          do: ["interpolated sensitive data"],
-          else: []
+        check_sensitive_literal(value)
 
       _ ->
         []
     end
   end
+
+  defp check_sensitive_literal(value) do
+    if contains_sensitive_interpolation?(value),
+      do: ["interpolated sensitive data"],
+      else: []
+  end
+
+  # `user.password` is emitted as `Map.fetch!(user, :password)`, so the *field*
+  # name is the sensitive part, not the receiver. `inspect`/`struct`-style
+  # calls are descended into wholesale.
+  defp check_sensitive_call(func_name, inner_args) do
+    cond do
+      func_name in ~W(Map.fetch! Map.fetch Map.get) ->
+        inner_args
+        |> Enum.drop(1)
+        |> Enum.flat_map(&field_name/1)
+        |> Enum.filter(&sensitive_field?/1)
+
+      func_name in ["inspect", "Kernel.inspect"] or
+          String.contains?(func_name, ["struct", "map", "attributes"]) ->
+        Enum.flat_map(inner_args, &check_sensitive_in_arg/1)
+
+      true ->
+        []
+    end
+  end
+
+  defp check_sensitive_pair({key, _val}) when is_binary(key) do
+    if sensitive_field?(key), do: [key], else: []
+  end
+
+  defp check_sensitive_pair({{:literal, _, key}, _val}) when is_binary(key) do
+    if sensitive_field?(key), do: [key], else: []
+  end
+
+  defp check_sensitive_pair(_), do: []
 
   defp check_sensitive_attribute_chain(children) do
     Enum.flat_map(children, fn
@@ -203,6 +233,13 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
     name_lower = name |> to_string() |> String.downcase()
     Enum.any?(@sensitive_field_patterns, &String.contains?(name_lower, &1))
   end
+
+  # Extracts the field name from a `Map.fetch!(recv, :field)` argument.
+  defp field_name({:literal, meta, value}) when is_list(meta) do
+    if Keyword.get(meta, :subtype) == :symbol, do: [to_string(value)], else: []
+  end
+
+  defp field_name(_), do: []
 
   defp sensitive_object?({:variable, _meta, name}) when is_binary(name) do
     name_lower = String.downcase(name)

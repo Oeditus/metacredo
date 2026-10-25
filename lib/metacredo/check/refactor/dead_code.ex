@@ -43,11 +43,19 @@ defmodule MetaCredo.Check.Refactor.DeadCode do
     issues
   end
 
-  # Check blocks for statements after early_return
+  # Check blocks for statements after early_return.
+  #
+  # A function body arrives as a bare statement list, and `raise`/`throw`/
+  # `return` are emitted as plain `:function_call` nodes rather than
+  # `:early_return` -- both shapes must be handled.
   defp traverse({:block, meta, stmts} = node, issues, source_file)
        when is_list(meta) and is_list(stmts) do
-    new_issues = check_block_for_dead(stmts, source_file)
-    {node, new_issues ++ issues}
+    {node, check_block_for_dead(stmts, source_file) ++ issues}
+  end
+
+  defp traverse({:function_def, meta, stmts} = node, issues, source_file)
+       when is_list(meta) and is_list(stmts) do
+    {node, check_block_for_dead(stmts, source_file) ++ issues}
   end
 
   defp traverse(node, issues, _sf), do: {node, issues}
@@ -79,11 +87,19 @@ defmodule MetaCredo.Check.Refactor.DeadCode do
     issues
   end
 
+  # Statements that terminate control flow for the remainder of the block.
+  @terminators ~W(raise reraise throw exit return)
+
   defp early_return?({:early_return, _meta, _children}), do: true
+
+  defp early_return?({:function_call, meta, _args}) when is_list(meta) do
+    CheckUtils.safe_name(meta) in @terminators
+  end
+
   defp early_return?(_), do: false
 
   defp extract_line({_type, meta, _children}) when is_list(meta),
-    do: Keyword.get(meta, :line)
+    do: CheckUtils.line_of(meta)
 
   defp extract_line(_), do: nil
 end

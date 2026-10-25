@@ -34,13 +34,46 @@ issues that are unrelated to the current PR.
 
 ```
 --diff                Enable diff-based mode
+--diff-lines          Report only findings on lines the diff touched
 --base REF            Base git ref (default: origin/main)
 --head REF            Head git ref (default: HEAD)
 --format FORMAT       Output format: text (default), json, github
 --strict              Only report normal+ priority issues
+--min-confidence LVL  Minimum confidence: high, medium (default), low
+--baseline PATH       Suppress issues recorded in a baseline file
+--write-baseline PATH Record the current issues as a baseline
 --only CATEGORIES     Comma-separated categories (security,warning,...)
 --ignore CATEGORIES   Comma-separated categories to skip
 ```
+
+### Line-level diff mode
+
+`--diff` analyses every changed *file*. `--diff-lines` narrows reporting to
+the lines the diff actually touched — files are still analysed whole (a check
+needs surrounding context), but pre-existing findings elsewhere in a changed
+file are suppressed. This is the difference between a check people read and
+one they ignore:
+
+```bash
+mix metacredo --diff --diff-lines --format github --strict
+```
+
+### Adopting MetaCredo on an unclean codebase
+
+A baseline records the issues that already exist, so CI only fails on *new*
+ones:
+
+```bash
+# Once, locally — commit the result
+mix metacredo --write-baseline .metacredo.baseline.json
+
+# In CI, forever after
+mix metacredo --diff --baseline .metacredo.baseline.json --format github --strict
+```
+
+Issues are matched on `{check, filename, line_no, message}`. A missing or
+malformed baseline is treated as empty, so a stale path never silently hides
+findings.
 
 ### Examples
 
@@ -195,5 +228,5 @@ should handle this automatically.
 
 ---
 
-**Version:** MetaCredo 0.4.4
-**Last Updated:** September 2026
+**Version:** MetaCredo 0.7.0
+**Last Updated:** October 2026

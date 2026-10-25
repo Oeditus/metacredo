@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInAuthPlug do
   use MetaCredo.Check,
     category: :observability,
     base_priority: :high,
+    confidence: :low,
     param_defaults: [
       auth_indicators:
         ~W[auth authenticate authorize permission verify check validate token session login logout sign_in sign_out],
@@ -73,7 +74,7 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInAuthPlug do
 
     if auth_function?(name, auth_indicators) and
          not body_has_telemetry?(children, telemetry_indicators) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

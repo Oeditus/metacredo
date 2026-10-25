@@ -60,7 +60,7 @@ defmodule MetaCredo.Check.ConsistencyTest do
     test "detects body destructure via member_access on parameter" do
       body = [
         assign(
-          var("name"),
+          var("user_name"),
           {:member_access, [field: "name"], [{:variable, [], "user"}]},
           line: 3
         )
@@ -71,7 +71,62 @@ defmodule MetaCredo.Check.ConsistencyTest do
       assert_issue(issues, message: ~r/pattern matching in function head/i)
     end
 
-    test "detects body destructure via Map.get on parameter" do
+    test "detects body destructure via field read on parameter" do
+      # `user_name = opts.name` -- the adapter emits `opts.name` as
+      # `Map.fetch!(opts, :name)`, and the target differs from the field.
+      body = [
+        assign(
+          var("user_name"),
+          call("Map.fetch!", [{:variable, [], "opts"}, literal_symbol(:name)],
+            name: "Map.fetch!"
+          ),
+          line: 5
+        )
+      ]
+
+      ast = function_def("process", ["opts"], body, line: 4)
+      issues = run_check(Consistency.ParameterPatternMatching, ast: ast)
+      assert_issue(issues, trigger: "process")
+    end
+
+    test "detects destructuring even when the target repeats the field name" do
+      # `name = opts.name` is genuine destructuring: `name` is a field of the
+      # `opts` parameter, so it belongs in the function head.
+      body = [
+        assign(
+          var("name"),
+          call("Map.fetch!", [{:variable, [], "opts"}, literal_symbol(:name)],
+            name: "Map.fetch!"
+          ),
+          line: 5
+        )
+      ]
+
+      ast = function_def("process", ["opts"], body, line: 4)
+      issues = run_check(Consistency.ParameterPatternMatching, ast: ast)
+      assert_issue(issues, trigger: "process")
+    end
+
+    test "passes when the field is a snake_case method name" do
+      # `defaults = mod.param_defaults()` is a remote call, not a field read;
+      # the adapter emits it as `Map.fetch!(mod, :param_defaults)`.
+      body = [
+        assign(
+          var("defaults"),
+          call("Map.fetch!", [{:variable, [], "opts"}, literal_symbol(:param_defaults)],
+            name: "Map.fetch!"
+          ),
+          line: 5
+        )
+      ]
+
+      ast = function_def("process", ["opts"], body, line: 4)
+      issues = run_check(Consistency.ParameterPatternMatching, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "passes when a parameter is only read via Map.get" do
+      # `Map.get(opts, :name)` is a lookup, not destructuring.
       body = [
         assign(
           var("name"),
@@ -82,7 +137,7 @@ defmodule MetaCredo.Check.ConsistencyTest do
 
       ast = function_def("process", ["opts"], body, line: 4)
       issues = run_check(Consistency.ParameterPatternMatching, ast: ast)
-      assert_issue(issues, trigger: "process")
+      assert_no_issues(issues)
     end
 
     test "passes when no body destructuring of params" do

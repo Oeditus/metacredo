@@ -9,12 +9,17 @@ defmodule Mix.Tasks.Metacredo do
       $ mix metacredo --path lib/my_module
       $ mix metacredo --strict
       $ mix metacredo --only security,warning
+      $ mix metacredo --min-confidence high
       $ mix metacredo --format json
       $ mix metacredo --format github
       $ mix metacredo --diff
+      $ mix metacredo --diff --diff-lines
       $ mix metacredo --diff --base origin/develop --head HEAD
       $ mix metacredo --config path/to/.metacredo.exs
+      $ mix metacredo --write-baseline .metacredo.baseline.json
+      $ mix metacredo --baseline .metacredo.baseline.json
       $ mix metacredo explain MetaCredo.Check.Security.HardcodedValue
+      $ mix metacredo explain lib/my_app/accounts.ex:42
 
   ## Path
 
@@ -36,6 +41,24 @@ defmodule Mix.Tasks.Metacredo do
   ideal for CI pipelines where you only want to check new or modified
   code in a pull request.
 
+  Add `--diff-lines` to report only findings on the lines the diff actually
+  touched. Files are still analysed whole (a check needs surrounding
+  context), but pre-existing findings elsewhere in a changed file are
+  suppressed.
+
+  ## Confidence
+
+  Every issue carries a confidence level. `--min-confidence high` keeps only
+  AST-structural findings, dropping the name-substring heuristics that
+  account for most false positives. Accepts `high`, `medium` (default), or
+  `low`.
+
+  ## Baseline
+
+  `--write-baseline PATH` records the current findings; `--baseline PATH`
+  then reports only issues *not* present in that file. This is how to adopt
+  MetaCredo on a codebase that is not clean today.
+
   ## GitHub Actions Format
 
   Use `--format github` to emit GitHub Actions workflow commands that
@@ -46,43 +69,69 @@ defmodule Mix.Tasks.Metacredo do
 
   use Mix.Task
 
-  alias MetaCredo.{CLI.Output, Config, Execution, Git, Sources}
+  alias MetaCredo.{CLI.Explain, CLI.Output, Execution, Git, Issue, Sources}
+
+  # Switches understood by the analysis path. `explain` is a *subcommand*, not
+  # a switch, and must be dispatched before `OptionParser` ever sees it:
+  # `OptionParser.parse/2` in `:strict` mode raises `ParseError` on the bare
+  # word `explain`, which previously aborted the whole task and fell through
+  # to a full analysis run.
+  @switches [
+    path: :string,
+    strict: :boolean,
+    only: :string,
+    ignore: :string,
+    format: :string,
+    config: :string,
+    config_file: :string,
+    files_included: :string,
+    files_excluded: :string,
+    diff: :boolean,
+    diff_lines: :boolean,
+    base: :string,
+    head: :string,
+    no_db: :boolean,
+    no_user: :boolean,
+    min_confidence: :string,
+    baseline: :string,
+    write_baseline: :string
+  ]
 
   @impl Mix.Task
   def run(argv) do
     Mix.Task.run("compile", ["--no-warnings"])
 
-    {opts, args, _} =
-      OptionParser.parse(argv,
-        strict: [
-          path: :string,
-          strict: :boolean,
-          only: :string,
-          ignore: :string,
-          format: :string,
-          config: :string,
-          config_file: :string,
-          files_included: :string,
-          files_excluded: :string,
-          diff: :boolean,
-          base: :string,
-          head: :string,
-          no_db: :boolean,
-          no_user: :boolean
-        ]
-      )
-
-    case args do
-      ["explain", check_name | _] ->
-        run_explain(check_name)
+    case argv do
+      ["explain" | rest] ->
+        Explain.run(rest)
 
       _ ->
-        run_analysis(opts)
+        run_analysis(parse_opts(argv))
+    end
+  end
+
+  # Parses analysis switches, raising a readable `Mix.raise/1` on unknown or
+  # malformed options instead of letting an `OptionParser.ParseError` escape
+  # as an opaque stacktrace.
+  defp parse_opts(argv) do
+    case OptionParser.parse(argv, strict: @switches) do
+      {opts, _args, []} ->
+        opts
+
+      {_opts, _args, invalid} ->
+        Mix.raise(
+          "Invalid option(s): " <>
+            Enum.map_join(invalid, ", ", fn {name, _value} -> name end) <>
+            "\nRun `mix help metacredo` for the list of supported options."
+        )
     end
   end
 
   defp run_analysis(opts) do
-    report = Execution.run(build_execution_opts(opts))
+    exec_opts = build_execution_opts(opts)
+    strip_prefix = exec_opts[:path_prefix_to_strip]
+    report = Execution.run(Keyword.delete(exec_opts, :path_prefix_to_strip))
+    report = %{report | issues: relativize_issues(report.issues, strip_prefix)}
 
     case opts[:format] do
       "json" ->
@@ -106,6 +155,18 @@ defmodule Mix.Tasks.Metacredo do
     end
   end
 
+  # Rewrites absolute issue filenames back to repo-relative form. Diff mode
+  # discovers files via absolute paths (required to read them), but every
+  # consumer -- GitHub annotations, JSON output, editor jump-to-line -- needs
+  # paths relative to the repository root.
+  defp relativize_issues(issues, nil), do: issues
+
+  defp relativize_issues(issues, prefix) do
+    Enum.map(issues, fn issue ->
+      %{issue | filename: Path.relative_to(issue.filename, prefix)}
+    end)
+  end
+
   @doc false
   # Builds `MetaCredo.Execution.run/1`'s options from parsed CLI `opts`.
   # Exposed (undocumented) for regression testing of the --path / config
@@ -123,6 +184,9 @@ defmodule Mix.Tasks.Metacredo do
     |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
     |> maybe_add(:no_db, opts[:no_db])
     |> maybe_add(:no_user, opts[:no_user])
+    |> maybe_add(:min_confidence, Issue.parse_confidence(opts[:min_confidence]))
+    |> maybe_add(:baseline, opts[:baseline])
+    |> maybe_add(:write_baseline, opts[:write_baseline])
     |> maybe_add_path(opts)
     |> maybe_add_diff_files(opts)
   end
@@ -174,213 +238,56 @@ defmodule Mix.Tasks.Metacredo do
 
       files = Git.changed_files!(repo_root, diff_opts)
 
-      # Convert relative paths to absolute for Sources.find/1
-      absolute_files = Enum.map(files, &Path.join(repo_root, &1))
+      # `Sources.find/1` needs absolute paths to read the files, but issue
+      # `filename`s must stay repo-relative or GitHub Actions cannot attach
+      # inline PR annotations (`::warning file=/abs/path` is silently dropped).
+      # We therefore hand absolute paths to discovery and rewrite the
+      # resulting issue filenames back to repo-relative before reporting.
+      scoped_files =
+        files
+        |> Enum.map(&Path.join(repo_root, &1))
+        |> restrict_to_path(opts[:path])
 
-      # When --path is given, restrict diff results to files under that path.
-      absolute_files =
-        case opts[:path] do
-          nil ->
-            absolute_files
-
-          path ->
-            scope = path |> Path.expand() |> Path.absname()
-            Enum.filter(absolute_files, &String.starts_with?(&1, scope))
-        end
-
-      if absolute_files == [] do
+      if scoped_files == [] do
         Mix.shell().info("No changed files found in diff, nothing to analyze.")
       end
 
-      Keyword.put(opts_acc, :files_included, absolute_files)
+      # `--diff-lines` narrows reporting to the lines the diff actually
+      # touched. Files are still analysed whole (a check needs surrounding
+      # context), but only findings on changed lines are reported.
+      changed_lines =
+        if opts[:diff_lines] do
+          repo_root
+          |> Git.changed_lines!(diff_opts)
+          |> restrict_lines_to_path(opts[:path], repo_root)
+        end
+
+      opts_acc
+      |> Keyword.put(:files_included, scoped_files)
+      |> Keyword.put(:path_prefix_to_strip, repo_root)
+      |> Keyword.put(:changed_lines, changed_lines)
+      # Diff mode derives its file list from git, not from a deliberate user
+      # opt-in, so the default `test/` exclusion must stay in force -- exactly
+      # as it does for a normal run.
+      |> Keyword.put(:lift_test_exclusion, false)
     else
       opts_acc
     end
   end
 
-  defp run_explain(check_ref) do
-    {module, issue, language} = resolve_check_with_context(check_ref)
+  # When `--path` is given, restrict diff results to files under that path.
+  defp restrict_to_path(files, nil), do: files
 
-    if module && Code.ensure_loaded?(module) && function_exported?(module, :category, 0) do
-      Output.print_explanation(module, issue, language)
-    else
-      Mix.shell().error("Check '#{check_ref}' not found.")
-    end
+  defp restrict_to_path(files, path) do
+    scope = path |> Path.expand() |> Path.absname()
+    Enum.filter(files, &String.starts_with?(&1, scope))
   end
 
-  # Resolves a check reference and returns {module, issue | nil, language}.
-  #
-  # Supported forms:
-  #   file:line  e.g. lib/metacredo/cli/output.ex:42
-  #              Runs a quick analysis on the file; returns the check module
-  #              and issue that produced the first hit at that line.
-  #              Falls back to treating the path as a check definition file.
-  #   file       e.g. lib/metacredo/check/security/hardcoded_value.ex
-  #   FQN        e.g. MetaCredo.Check.Security.HardcodedValue
-  #   short name e.g. HardcodedValue
-  defp resolve_check_with_context(ref) do
-    cond do
-      file_ref?(ref) ->
-        {path, line_no} = split_file_ref(ref)
-        language = Sources.language_for(path) || detect_project_language()
+  defp restrict_lines_to_path(lines, nil, _repo_root), do: lines
 
-        issue =
-          if line_no && File.exists?(path), do: check_at_location(path, line_no)
-
-        module = (issue && issue.check) || path_to_check_module(path)
-        {module, issue, language}
-
-      String.contains?(ref, ".") ->
-        module = ref |> String.split(".") |> Module.concat()
-        {module, nil, detect_project_language()}
-
-      true ->
-        {find_check_by_short_name(ref), nil, detect_project_language()}
-    end
-  end
-
-  defp file_ref?(str) do
-    exts = Sources.supported_extensions() |> Enum.map_join("|", &Regex.escape/1)
-    Regex.match?(~r/(?:#{exts})(:\d+)?$/, str)
-  end
-
-  defp split_file_ref(str) do
-    case String.split(str, ":") do
-      [path, line] ->
-        case Integer.parse(line) do
-          {n, ""} -> {path, n}
-          _ -> {str, nil}
-        end
-
-      [path] ->
-        {path, nil}
-
-      _ ->
-        {str, nil}
-    end
-  end
-
-  # Run all enabled checks on a single file and return the first issue at the
-  # given line number (or nil if none is found).
-  defp check_at_location(file_path, line_no) do
-    checks = Config.enabled_checks(Config.default())
-    source_files = Sources.find(%{included: [file_path], excluded: []})
-
-    source_files
-    |> Execution.run_on_source_files(checks)
-    |> Enum.find(&(&1.line_no == line_no))
-  end
-
-  # Converts a check source file path to its module by case-insensitive
-  # comparison against all compiled check modules in the build directory.
-  defp path_to_check_module(path) do
-    relative =
-      path
-      |> String.replace(~r/^(lib|test|src)\//, "")
-      |> String.replace(~r/\.exs?$/, "")
-
-    expected =
-      relative
-      |> String.split("/")
-      |> Enum.map_join(".", fn part ->
-        part |> String.split("_") |> Enum.map_join("", &String.capitalize/1)
-      end)
-      |> String.downcase()
-
-    metacredo_check_modules()
-    |> Enum.find(fn mod ->
-      mod |> to_string() |> String.replace("Elixir.", "") |> String.downcase() == expected
-    end)
-  end
-
-  defp find_check_by_short_name(short_name) do
-    metacredo_check_modules()
-    |> Enum.find(fn mod ->
-      mod |> to_string() |> String.split(".") |> List.last() == short_name
-    end)
-  end
-
-  # Enumerate all MetaCredo check modules by scanning the compiled BEAM files.
-  # This is reliable in a Mix task context where :application.get_key/2 may
-  # not yet be available.
-  defp metacredo_check_modules do
-    ebin = Path.join([Mix.Project.build_path(), "lib", "metacredo", "ebin"])
-
-    if File.dir?(ebin) do
-      ebin
-      |> File.ls!()
-      |> Enum.filter(&String.match?(&1, ~r/^Elixir\.MetaCredo\.Check\./i))
-      |> Enum.flat_map(fn beam_file ->
-        mod = beam_file |> String.trim_trailing(".beam") |> String.to_atom()
-
-        if Code.ensure_loaded?(mod) and function_exported?(mod, :category, 0),
-          do: [mod],
-          else: []
-      end)
-    else
-      []
-    end
-  end
-
-  # Detects the primary programming language used in the current project.
-  # Checks for well-known project descriptor files first, then falls back to
-  # scanning source directories and returning the most prevalent language.
-  defp detect_project_language do
-    cond do
-      File.exists?("mix.exs") ->
-        :elixir
-
-      File.exists?("rebar.config") or File.exists?("rebar.lock") ->
-        :erlang
-
-      File.exists?("pyproject.toml") or File.exists?("requirements.txt") or
-          File.exists?("setup.py") ->
-        :python
-
-      File.exists?("Gemfile") ->
-        :ruby
-
-      File.exists?("stack.yaml") or File.exists?("cabal.project") or File.exists?("package.yaml") ->
-        :haskell
-
-      File.exists?("tsconfig.json") ->
-        :typescript
-
-      File.exists?("package.json") ->
-        :javascript
-
-      File.exists?("cure.json") ->
-        :cure
-
-      File.exists?("march.json") ->
-        :march
-
-      true ->
-        detect_language_from_sources()
-    end
-  end
-
-  defp detect_language_from_sources do
-    config = Config.default()
-
-    counts =
-      config.files.included
-      |> Enum.flat_map(fn path ->
-        if File.dir?(path) do
-          Sources.supported_extensions()
-          |> Enum.flat_map(&Path.wildcard("#{path}/**/*#{&1}"))
-        else
-          [path]
-        end
-      end)
-      |> Enum.map(&Sources.language_for/1)
-      |> Enum.reject(&is_nil/1)
-      |> Enum.frequencies()
-
-    case Enum.max_by(counts, fn {_lang, count} -> count end, fn -> nil end) do
-      {lang, _} -> lang
-      nil -> :elixir
-    end
+  defp restrict_lines_to_path(lines, path, repo_root) do
+    scope = path |> Path.expand() |> Path.absname() |> Path.relative_to(repo_root)
+    Map.filter(lines, fn {file, _} -> String.starts_with?(file, scope) end)
   end
 
   defp parse_list(nil), do: nil

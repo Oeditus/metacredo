@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.MagicNumber do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :low,
+    confidence: :high,
     param_defaults: [ignored_numbers: [0, 1, -1]],
     explanations: [
       check: """
@@ -55,37 +56,55 @@ defmodule MetaCredo.Check.Readability.MagicNumber do
     end)
   end
 
+  # Node types whose numeric literals count as "in an expression".
+  @expression_contexts [:binary_op, :unary_op]
+
   defp find_magic_numbers(ast, context, current_line, ignored) do
     case ast do
+      # A module-attribute value *is* a named constant -- never report it.
+      {kind, _meta, [{:variable, _, "@" <> _}, _value]}
+      when kind in [:assignment, :inline_match] ->
+        []
+
       {:binary_op, meta, [left, right]} when is_list(meta) ->
         line = Keyword.get(meta, :line, current_line)
-
-        find_magic_numbers(left, [:binary_op | context], line, ignored) ++
-          find_magic_numbers(right, [:binary_op | context], line, ignored)
+        descend([left, right], [:binary_op | context], line, ignored)
 
       {:literal, meta, value} when is_list(meta) and is_number(value) ->
-        subtype = Keyword.get(meta, :subtype)
-        in_expr? = :binary_op in context or :unary_op in context
-
-        if in_expr? and subtype in [:integer, :float] and value not in ignored do
-          [{value, current_line}]
-        else
-          []
-        end
+        if magic_number?(meta, value, context, ignored),
+          do: [{value, current_line}],
+          else: []
 
       {:unary_op, meta, [operand]} when is_list(meta) ->
-        line = Keyword.get(meta, :line, current_line)
-        find_magic_numbers(operand, [:unary_op | context], line, ignored)
-
-      {:block, _meta, statements} when is_list(statements) ->
-        Enum.flat_map(statements, &find_magic_numbers(&1, context, current_line, ignored))
+        descend([operand], [:unary_op | context], Keyword.get(meta, :line, current_line), ignored)
 
       {:function_call, meta, args} when is_list(meta) and is_list(args) ->
-        line = Keyword.get(meta, :line, current_line)
-        Enum.flat_map(args, &find_magic_numbers(&1, context, line, ignored))
+        descend(args, context, Keyword.get(meta, :line, current_line), ignored)
+
+      # Any other compound node: keep descending, preserving the expression
+      # context. Without this, literals nested under `:conditional`,
+      # `:inline_match`, `:container`, etc. were never reached.
+      {_type, _meta, children} when is_list(children) ->
+        descend(children, context, current_line, ignored)
+
+      list when is_list(list) ->
+        descend(list, context, current_line, ignored)
 
       _ ->
         []
     end
+  end
+
+  # Recurse into `nodes`, carrying the expression context and line.
+  defp descend(nodes, context, line, ignored) do
+    Enum.flat_map(nodes, &find_magic_numbers(&1, context, line, ignored))
+  end
+
+  # A numeric literal is "magic" when it appears inside an arithmetic
+  # expression, is an integer or float, and is not in the ignored set.
+  defp magic_number?(meta, value, context, ignored) do
+    Keyword.get(meta, :subtype) in [:integer, :float] and
+      Enum.any?(context, &(&1 in @expression_contexts)) and
+      value not in ignored
   end
 end

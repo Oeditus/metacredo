@@ -31,6 +31,10 @@ defmodule MetaCredo.Analysis.Duplication.Result do
 
   alias MetaCredo.Analysis.Duplication.Types
 
+  # Similarity is reported as a percentage with one decimal place.
+  @percent 100
+  @precision 1
+
   @typedoc """
   Location information for a code clone.
   """
@@ -170,7 +174,7 @@ defmodule MetaCredo.Analysis.Duplication.Result do
       clone_type: :type_iii,
       similarity_score: similarity,
       summary:
-        "Near-miss clone detected (Type III) - #{Float.round(similarity * 100, 1)}% similar"
+        "Near-miss clone detected (Type III) - #{Float.round(similarity * @percent, @precision)}% similar"
     }
   end
 
@@ -193,7 +197,8 @@ defmodule MetaCredo.Analysis.Duplication.Result do
       duplicate?: true,
       clone_type: :type_iv,
       similarity_score: similarity,
-      summary: "Semantic clone detected (Type IV) - #{Float.round(similarity * 100, 1)}% similar"
+      summary:
+        "Semantic clone detected (Type IV) - #{Float.round(similarity * @percent, @precision)}% similar"
     }
   end
 

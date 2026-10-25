@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.LongParameterList do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    confidence: :high,
     param_defaults: [max_params: 5],
     explanations: [
       check: """
@@ -51,7 +52,7 @@ defmodule MetaCredo.Check.Readability.LongParameterList do
     param_count = length(param_list)
 
     if param_count > max_params do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

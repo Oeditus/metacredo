@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInLiveviewMount do
   use MetaCredo.Check,
     category: :observability,
     base_priority: :normal,
+    confidence: :low,
     param_defaults: [
       lifecycle_indicators: ~W[mount componentdidmount oninit oninitialize mounted created setup],
       telemetry_indicators: ~W[telemetry emit log trace metric record measure]
@@ -66,7 +67,7 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInLiveviewMount do
 
     if lifecycle_function?(name, lifecycle_indicators) and
          not body_has_telemetry?(children, telemetry_indicators) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

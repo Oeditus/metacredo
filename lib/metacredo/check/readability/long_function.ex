@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.LongFunction do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    confidence: :high,
     param_defaults: [max_statements: 50],
     explanations: [
       check: """
@@ -14,13 +15,63 @@ defmodule MetaCredo.Check.Readability.LongFunction do
       examples: [
         elixir: [
           wrong: """
-          # 60+ statements all crammed into one function
+          # 55 statements crammed into one function -- impossible to review or test
           def process_order(order, user, opts) do
             validate_user(user)
             check_inventory(order)
             apply_discounts(order)
             calculate_tax(order)
-            # ... 55 more statements ...
+            reserve_stock(order)
+            authorize_payment(order, user)
+            capture_payment(order)
+            create_shipment(order)
+            notify_warehouse(order)
+            send_confirmation_email(user)
+            record_audit_event(order, user)
+            update_analytics(order)
+            invalidate_cache(order)
+            publish_event(:order_placed, order)
+            schedule_followup(order)
+            validate_user(user)
+            check_inventory(order)
+            apply_discounts(order)
+            calculate_tax(order)
+            reserve_stock(order)
+            authorize_payment(order, user)
+            capture_payment(order)
+            create_shipment(order)
+            notify_warehouse(order)
+            send_confirmation_email(user)
+            record_audit_event(order, user)
+            update_analytics(order)
+            invalidate_cache(order)
+            publish_event(:order_placed, order)
+            schedule_followup(order)
+            validate_user(user)
+            check_inventory(order)
+            apply_discounts(order)
+            calculate_tax(order)
+            reserve_stock(order)
+            authorize_payment(order, user)
+            capture_payment(order)
+            create_shipment(order)
+            notify_warehouse(order)
+            send_confirmation_email(user)
+            record_audit_event(order, user)
+            update_analytics(order)
+            invalidate_cache(order)
+            publish_event(:order_placed, order)
+            schedule_followup(order)
+            validate_user(user)
+            check_inventory(order)
+            apply_discounts(order)
+            calculate_tax(order)
+            reserve_stock(order)
+            authorize_payment(order, user)
+            capture_payment(order)
+            create_shipment(order)
+            notify_warehouse(order)
+            send_confirmation_email(user)
           end
           """,
           correct: """
@@ -61,7 +112,7 @@ defmodule MetaCredo.Check.Readability.LongFunction do
     count = count_statements(children)
 
     if count > max_statements do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

@@ -1,4 +1,4 @@
-<img src="https://raw.githubusercontent.com/Oeditus/metacredo/v0.4.4/priv/images/logo-200.png" alt="MetaCredo" width="128" align="right">
+<img src="https://raw.githubusercontent.com/Oeditus/metacredo/v0.7.0/priv/images/logo-200.png" alt="MetaCredo" width="128" align="right">
 
 # MetaCredo
 
@@ -33,7 +33,7 @@ Add `metacredo` to your list of dependencies in `mix.exs`:
 ```elixir
 def deps do
   [
-    {:metacredo, "~> 0.4", only: [:dev, :test], runtime: false}
+    {:metacredo, "~> 0.7", only: [:dev, :test], runtime: false}
   ]
 end
 ```
@@ -54,16 +54,97 @@ $ mix metacredo --only security,warning
 $ mix metacredo --no-db
 $ mix metacredo --no-user
 
+# Only report high-confidence (AST-structural) findings
+$ mix metacredo --min-confidence high
+
 # JSON output
 $ mix metacredo --format json
 
 # Explain a specific check
 $ mix metacredo explain MetaCredo.Check.Security.HardcodedValue
 
+# Explain the issue at a specific line
+$ mix metacredo explain lib/my_app/accounts.ex:42
+
+# Adopt MetaCredo on a legacy codebase: record existing issues once, then
+# report only what is introduced afterwards
+$ mix metacredo --write-baseline .metacredo.baseline.json
+$ mix metacredo --baseline .metacredo.baseline.json --strict
+
 # Generate default configuration (local or global)
 $ mix metacredo.gen.config
 $ mix metacredo.gen.config --global
 ```
+
+### Explaining a finding
+
+`mix metacredo explain` accepts four reference forms:
+
+| Form | Example | What it does |
+|---|---|---|
+| Check module | `explain MetaCredo.Check.Security.HardcodedValue` | Prints the check's rationale, parameters, and cross-language examples. |
+| Short name | `explain HardcodedValue` | Same, resolved by the last module segment. |
+| Check source file | `explain lib/metacredo/check/security/hardcoded_value.ex` | Resolves the file to its check module. |
+| **`file:line`** | `explain lib/my_app/accounts.ex:42` | Runs a quick analysis on that file, finds the issue on line 42, and prints the check's explanation **plus ±3 lines of the offending source** with the flagged line highlighted. |
+
+The `file:line` form is the one to use when you are looking at a finding in
+your editor or in CI output:
+
+```console
+$ mix metacredo explain lib/my_app/accounts.ex:42
+
+  MetaCredo.Check.Security.HardcodedValue
+  [S] Category: security
+    Priority: high
+
+    CODE IN QUESTION
+
+      lib/my_app/accounts.ex:42
+
+          39│   def fetch_user(id) do
+          40│     url = "https://api.example.com/users"
+          41│
+    >>    42│     HTTPoison.get!(url)
+          43│   end
+
+    WHY IT MATTERS
+      ...
+```
+
+Paths outside the project are supported too — `explain /tmp/scratch.ex:7`
+resolves by basename when the file is not a check definition.
+
+### Confidence levels
+
+Every issue carries a confidence level, because not all checks are equally
+precise:
+
+| Level | Meaning | Examples |
+|---|---|---|
+| `:high` | AST-structural; the shape is unambiguous | `DoubleBooleanNegation`, `FilterCount`, `UnlessWithElse` |
+| `:medium` | Structural, heuristic in places | `HighComplexity`, `DeepNesting` |
+| `:low` | Name-substring heuristic | `PathTraversal`, `SSRFVulnerability`, `ImperativeStatusHandling` |
+
+`--min-confidence high` keeps only the structural findings. This is how you
+enable one of the noisy opt-in checks without drowning in its output.
+
+### Baseline mode
+
+A baseline records the issues that already exist so that only *new* ones are
+reported — the practical way to adopt MetaCredo on a codebase that is not
+clean today.
+
+```sh
+# Capture the current state (commit this file)
+$ mix metacredo --write-baseline .metacredo.baseline.json
+
+# Report only issues introduced since
+$ mix metacredo --baseline .metacredo.baseline.json --strict
+```
+
+Issues are matched on `{check, filename, line_no, message}`. A missing or
+malformed baseline is treated as empty, so a stale path never silently hides
+findings.
 
 ## How It Works
 
@@ -73,7 +154,7 @@ Source files are parsed into a language-agnostic AST using Metastatic's adapters
 the uniform `{type, keyword_meta, children}` node structure. This means every
 check is cross-language by default.
 
-## Check Categories (72 checks)
+## Check Categories (72 checks, 52 enabled by default)
 
 ### Consistency `[C]`—2 checks
 

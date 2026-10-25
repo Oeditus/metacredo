@@ -44,6 +44,8 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
 
   alias Metastatic.AST
 
+  require Logger
+
   @doc """
   Generates an exact fingerprint for an AST.
 
@@ -98,7 +100,9 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
       try do
         normalize_ast(ast)
       rescue
-        _ -> ast
+        e ->
+          Logger.debug(fn -> "Fingerprint normalization failed: #{inspect(e)}" end)
+          ast
       end
 
     :crypto.hash(:sha256, inspect(normalized_ast))
@@ -124,12 +128,12 @@ defmodule MetaCredo.Analysis.Duplication.Fingerprint do
   """
   @spec tokens(AST.meta_ast()) :: [atom()]
   def tokens(ast) do
-    try do
-      extract_tokens(ast, [])
-      |> Enum.reverse()
-    rescue
-      _ -> []
-    end
+    extract_tokens(ast, [])
+    |> Enum.reverse()
+  rescue
+    e ->
+      Logger.debug(fn -> "Token extraction failed: #{inspect(e)}" end)
+      []
   end
 
   @doc """

@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.VariableNames do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects variable names that do not follow snake_case convention.
@@ -44,9 +45,8 @@ defmodule MetaCredo.Check.Readability.VariableNames do
        when is_list(meta) do
     name_str = to_string(name)
 
-    if name_str != "" and not CheckUtils.special_variable?(name_str) and
-         not Regex.match?(@snake_case, name_str) do
-      line = Keyword.get(meta, :line)
+    if invalid_variable_name?(name_str) do
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -62,4 +62,12 @@ defmodule MetaCredo.Check.Readability.VariableNames do
   end
 
   defp traverse(node, issues, _sf), do: {node, issues}
+
+  # A variable name is reported when it is non-empty, not a language special
+  # form / module attribute, and not snake_case.
+  defp invalid_variable_name?(""), do: false
+
+  defp invalid_variable_name?(name_str) do
+    not CheckUtils.special_variable?(name_str) and not Regex.match?(@snake_case, name_str)
+  end
 end

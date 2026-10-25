@@ -43,6 +43,8 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
 
   use Mix.Task
 
+  @run_arity 2
+
   @impl Mix.Task
   def run(argv) do
     force? = "--force" in argv
@@ -141,7 +143,7 @@ defmodule Mix.Tasks.Metacredo.Gen.Config do
     Enum.filter(modules, fn mod ->
       Code.ensure_loaded?(mod) and
         String.starts_with?(to_string(mod), "Elixir.MetaCredo.Check.") and
-        function_exported?(mod, :run, 2) and
+        function_exported?(mod, :run, @run_arity) and
         function_exported?(mod, :category, 0)
     end)
   end

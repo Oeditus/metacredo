@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.SwallowingException do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :low,
     explanations: [
       check: """
       Detects `try/rescue` blocks where the rescue clause neither logs the
@@ -64,17 +65,19 @@ defmodule MetaCredo.Check.Warning.SwallowingException do
     silent_catches =
       Enum.filter(catch_clauses, fn
         {:match_arm, arm_meta, body_list} ->
-          body =
-            if is_list(body_list), do: List.last(body_list), else: Keyword.get(arm_meta, :body)
+          # Inspect the *whole* rescue body, not just its last statement: a
+          # `Logger.error(...)` followed by `:error` would otherwise be
+          # reported as silent.
+          body = if is_list(body_list), do: body_list, else: Keyword.get(arm_meta, :body)
 
-          not (has_logging?(body) or has_reraise?(body))
+          not (has_logging?(body) or has_reraise?(body) or propagates_error?(body))
 
         _ ->
           false
       end)
 
     if silent_catches != [] do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -92,21 +95,59 @@ defmodule MetaCredo.Check.Warning.SwallowingException do
 
   defp traverse(node, issues, _source_file), do: {node, issues}
 
-  # Recursively check for logging function calls
+  # Returning a tagged error tuple is a *third* legitimate way to surface a
+  # rescued exception, alongside logging and re-raising: the caller receives
+  # the error and decides what to do. Treating `rescue e -> {:error, e}` as a
+  # silent swallow produced a flood of false positives on idiomatic code.
+  defp propagates_error?({:tuple, _meta, elements}) when is_list(elements) do
+    Enum.any?(elements, &error_tag?/1)
+  end
+
+  defp propagates_error?({:block, _meta, statements}) when is_list(statements) do
+    Enum.any?(statements, &propagates_error?/1)
+  end
+
+  defp propagates_error?(statements) when is_list(statements) do
+    Enum.any?(statements, &propagates_error?/1)
+  end
+
+  defp propagates_error?({:early_return, _meta, [value]}), do: propagates_error?(value)
+
+  defp propagates_error?(_), do: false
+
+  defp error_tag?({:literal, meta, value}) when is_list(meta) do
+    Keyword.get(meta, :subtype) == :symbol and to_string(value) in ["error", "exception"]
+  end
+
+  defp error_tag?(_), do: false
+
+  # Recursively check for logging function calls.
+  #
+  # `Logger.debug(fn -> "..." end)` is the *lazy* logging form, and the call
+  # node's arguments are a `:lambda` wrapping the message. The generic tuple
+  # clause below would find it, but the specific `:function_call` clause
+  # short-circuits on the call name alone -- so a lazy log call was reported
+  # as if the rescue clause did nothing.
   defp has_logging?({:block, _meta, statements}) when is_list(statements) do
     Enum.any?(statements, &has_logging?/1)
   end
 
-  defp has_logging?({:function_call, call_meta, _args}) when is_list(call_meta) do
+  # A rescue body arrives as a *bare list* of statements, not wrapped in a
+  # `:block` node. Without this clause every multi-statement rescue body fell
+  # through to the catch-all and was reported as silent.
+  defp has_logging?(statements) when is_list(statements) do
+    Enum.any?(statements, &has_logging?/1)
+  end
+
+  defp has_logging?({:function_call, call_meta, args}) when is_list(call_meta) do
     func_name = Keyword.get(call_meta, :name, "")
-    logging_name?(func_name)
+    logging_name?(func_name) or has_logging?(args)
   end
 
   defp has_logging?(tuple) when is_tuple(tuple) do
     tuple |> Tuple.to_list() |> Enum.any?(&has_logging?/1)
   end
 
-  defp has_logging?(list) when is_list(list), do: Enum.any?(list, &has_logging?/1)
   defp has_logging?(_), do: false
 
   defp logging_name?(name) when is_binary(name) do
@@ -117,21 +158,23 @@ defmodule MetaCredo.Check.Warning.SwallowingException do
   defp logging_name?(name) when is_atom(name), do: logging_name?(Atom.to_string(name))
   defp logging_name?(_), do: false
 
-  # Recursively check for re-raise calls
   defp has_reraise?({:block, _meta, statements}) when is_list(statements) do
     Enum.any?(statements, &has_reraise?/1)
   end
 
-  defp has_reraise?({:function_call, call_meta, _args}) when is_list(call_meta) do
+  defp has_reraise?(statements) when is_list(statements) do
+    Enum.any?(statements, &has_reraise?/1)
+  end
+
+  defp has_reraise?({:function_call, call_meta, args}) when is_list(call_meta) do
     func_name = Keyword.get(call_meta, :name, "")
-    reraise_name?(func_name)
+    reraise_name?(func_name) or has_reraise?(args)
   end
 
   defp has_reraise?(tuple) when is_tuple(tuple) do
     tuple |> Tuple.to_list() |> Enum.any?(&has_reraise?/1)
   end
 
-  defp has_reraise?(list) when is_list(list), do: Enum.any?(list, &has_reraise?/1)
   defp has_reraise?(_), do: false
 
   defp reraise_name?(name) when is_binary(name) do

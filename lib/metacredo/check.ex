@@ -59,7 +59,16 @@ defmodule MetaCredo.Check do
   @doc "Returns a unique string ID for this check."
   @callback id() :: String.t()
 
-  @optional_callbacks tags: 0
+  @doc """
+  Returns how sure the check is that a finding is real.
+
+  Defaults to `:medium`. Checks built on name-substring heuristics should
+  declare `confidence: :low` in their `use` block; AST-structural checks
+  may declare `:high`.
+  """
+  @callback confidence() :: MetaCredo.Issue.confidence()
+
+  @optional_callbacks tags: 0, confidence: 0
 
   @valid_categories [
     :consistency,
@@ -79,6 +88,7 @@ defmodule MetaCredo.Check do
     explanations = Keyword.get(opts, :explanations, [])
     param_defaults = Keyword.get(opts, :param_defaults, [])
     tags = Keyword.get(opts, :tags, [])
+    confidence = Keyword.get(opts, :confidence, :medium)
 
     moduledoc = build_moduledoc(category, base_priority, explanations, param_defaults, tags)
 
@@ -107,6 +117,9 @@ defmodule MetaCredo.Check do
       def tags, do: unquote(tags)
 
       @impl true
+      def confidence, do: unquote(confidence)
+
+      @impl true
       def id, do: to_string(__MODULE__)
 
       defoverridable category: 0,
@@ -114,6 +127,7 @@ defmodule MetaCredo.Check do
                      explanations: 0,
                      param_defaults: 0,
                      tags: 0,
+                     confidence: 0,
                      id: 0
 
       @doc false
@@ -140,6 +154,7 @@ defmodule MetaCredo.Check do
   - `:column` - Column number
   - `:severity` - Override severity
   - `:priority` - Override priority
+  - `:confidence` - Override confidence (`:high` | `:medium` | `:low`)
   - `:metadata` - Additional metadata map
   """
   @spec format_issue(module(), SourceFile.t(), Keyword.t()) :: Issue.t()
@@ -151,6 +166,7 @@ defmodule MetaCredo.Check do
       category: category,
       severity: Keyword.get(opts, :severity, :warning),
       priority: Keyword.get(opts, :priority, check_module.base_priority()),
+      confidence: Keyword.get(opts, :confidence, confidence_for(check_module)),
       message: Keyword.fetch!(opts, :message),
       trigger: Keyword.get(opts, :trigger),
       line_no: Keyword.get(opts, :line_no),
@@ -159,6 +175,17 @@ defmodule MetaCredo.Check do
       exit_status: Keyword.get(opts, :exit_status, Issue.exit_status_for(category)),
       metadata: Keyword.get(opts, :metadata, %{})
     }
+  end
+
+  # Checks declare `confidence: :low` etc. in their `use` block when their
+  # heuristic is approximate; everything else is `:medium` (structural but
+  # heuristic in places) unless it opts into `:high`.
+  defp confidence_for(check_module) do
+    if function_exported?(check_module, :confidence, 0) do
+      check_module.confidence()
+    else
+      :medium
+    end
   end
 
   @doc """

@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :low,
     explanations: [
       check: """
       Detects `case` statements that match on `{:ok, _}` without a corresponding
@@ -39,20 +40,32 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
     issues
   end
 
-  # case expression: {:conditional, meta, [condition, ...branches]}
-  # In MetaAST, a case/match with branches is represented as a conditional
-  # with match_arm children. We look for cases where there's an :ok branch
-  # but no :error branch and no catch-all.
+  # `case` is emitted as `:pattern_match` (scrutinee followed by match arms).
+  # Some adapters use `:conditional` with match_arm children instead, so both
+  # shapes are accepted.
+  defp traverse(
+         {:pattern_match, meta, [_scrutinee | branches]} = node,
+         issues,
+         source_file
+       )
+       when is_list(meta) do
+    check_case_arms(node, collect_match_arms(branches), meta, issues, source_file)
+  end
+
   defp traverse(
          {:conditional, meta, [_condition | branches]} = node,
          issues,
          source_file
        )
        when is_list(meta) do
-    arms = collect_match_arms(branches)
+    check_case_arms(node, collect_match_arms(branches), meta, issues, source_file)
+  end
 
+  defp traverse(node, issues, _source_file), do: {node, issues}
+
+  defp check_case_arms(node, arms, meta, issues, source_file) do
     if has_ok_arm?(arms) and not has_error_or_catchall?(arms) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -67,8 +80,6 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
       {node, issues}
     end
   end
-
-  defp traverse(node, issues, _source_file), do: {node, issues}
 
   # Collect match_arm nodes from branch children
   defp collect_match_arms(branches) when is_list(branches) do
@@ -111,6 +122,8 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
   defp matches_error_tuple?(_), do: false
 
   defp catchall?({:variable, _, "_"}), do: true
+  # The Elixir adapter emits a bare `_` pattern as the symbol literal `:_`.
+  defp catchall?({:literal, _, :_}), do: true
   defp catchall?(:_), do: true
   defp catchall?(_), do: false
 end

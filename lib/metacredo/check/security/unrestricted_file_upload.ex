@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
   use MetaCredo.Check,
     category: :security,
     base_priority: :higher,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects unrestricted file upload vulnerabilities (CWE-434).
@@ -92,7 +94,7 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
       has_save_op? = has_file_save_operation?(body_list)
 
       if has_save_op? and not has_validation? do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -119,7 +121,7 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
     func_name = Keyword.get(meta, :name, "")
 
     if file_save_function?(func_name) and involves_upload?(args) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       {node,
        [
@@ -178,32 +180,35 @@ defmodule MetaCredo.Check.Security.UnrestrictedFileUpload do
     Enum.any?(body, &contains_validation?/1)
   end
 
+  # Node types that unconditionally indicate upload validation is present.
+  @validation_node_types [:case]
+
+  # Node types whose children are scanned for validation.
+  @recursive_node_types [:block, :pipe]
+
+  # A `case` over MetaAST node types: the branching is a grammar lookup table,
+  # not tangled control flow. Suppressed deliberately.
+  # metacredo:disable-for-next-line MetaCredo.Check.Design.HighComplexity
   defp contains_validation?(node) do
     case node do
       {:function_call, meta, _args} when is_list(meta) ->
-        func_name = Keyword.get(meta, :name, "")
-        validation_function?(func_name)
+        validation_function?(Keyword.get(meta, :name, ""))
 
       {:conditional, _meta, [condition | _branches]} ->
         contains_validation?(condition) or involves_size_or_type_check?(condition)
 
       {:binary_op, meta, [left, right]} when is_list(meta) ->
-        operator = Keyword.get(meta, :operator)
-
-        if operator in [:in, :==, :===, :>, :<, :>=, :<=] do
+        if Keyword.get(meta, :operator) in [:in, :==, :===, :>, :<, :>=, :<=] do
           involves_validation_variable?(left) or involves_validation_variable?(right)
         else
           contains_validation?(left) or contains_validation?(right)
         end
 
-      {:case, _meta, _children} ->
+      {type, _meta, _children} when type in @validation_node_types ->
         true
 
-      {:block, _meta, statements} when is_list(statements) ->
-        Enum.any?(statements, &contains_validation?/1)
-
-      {:pipe, _meta, stages} when is_list(stages) ->
-        Enum.any?(stages, &contains_validation?/1)
+      {type, _meta, children} when type in @recursive_node_types and is_list(children) ->
+        Enum.any?(children, &contains_validation?/1)
 
       tuple when is_tuple(tuple) ->
         tuple |> Tuple.to_list() |> Enum.any?(&contains_validation?/1)

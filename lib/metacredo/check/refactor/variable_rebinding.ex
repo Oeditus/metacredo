@@ -76,17 +76,27 @@ defmodule MetaCredo.Check.Refactor.VariableRebinding do
     issues
   end
 
+  # Metastatic emits `x = expr` as `:inline_match` in Elixir; `:assignment` is
+  # the shape used by other adapters, so both are accepted.
+  defp extract_assignment_target({:inline_match, meta, [{:variable, _vm, name} | _rest]})
+       when is_list(meta) do
+    assignment_target(name, meta)
+  end
+
   defp extract_assignment_target({:assignment, meta, [{:variable, _vm, name} | _rest]})
        when is_list(meta) do
+    assignment_target(name, meta)
+  end
+
+  defp extract_assignment_target(_), do: nil
+
+  defp assignment_target(name, meta) do
     name_str = to_string(name)
-    line = Keyword.get(meta, :line)
 
     if String.starts_with?(name_str, "_") do
       nil
     else
-      {name_str, line}
+      {name_str, CheckUtils.line_of(meta)}
     end
   end
-
-  defp extract_assignment_target(_), do: nil
 end

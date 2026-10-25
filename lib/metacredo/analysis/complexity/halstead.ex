@@ -102,7 +102,11 @@ defmodule MetaCredo.Analysis.Complexity.Halstead do
 
   # Private implementation
 
+  # A single `case` over every MetaAST node type: the branching is a lookup
+  # table over the language grammar, not tangled control flow, so splitting it
+  # would only scatter the metric's definition. Suppressed deliberately.
   # credo:disable-for-lines:236
+  # metacredo:disable-for-next-line MetaCredo.Check.Design.HighComplexity
   defp walk(ast, acc) do
     case ast do
       # Binary operators (3-tuple)

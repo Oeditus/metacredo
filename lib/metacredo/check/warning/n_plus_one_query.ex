@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.NPlusOneQuery do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :low,
     tags: [:db],
     explanations: [
       check: """
@@ -53,7 +54,7 @@ defmodule MetaCredo.Check.Warning.NPlusOneQuery do
     operation = Keyword.get(meta, :op_type)
 
     if operation in [:map, :each, :flat_map, :reduce] and contains_database_call?(lambda) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

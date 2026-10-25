@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :normal,
+    confidence: :low,
     param_defaults: [
       status_field_names: ["status", "state"],
       min_states: 3
@@ -25,12 +26,14 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
         elixir: [
           wrong: """
           # Ad-hoc status machine -- missing transitions are easy to miss
-          def process(order) do
-            case order.status do
-              :pending -> {:ok, %{order | status: :processing}}
-              :processing -> {:ok, %{order | status: :shipped}}
-              :shipped -> {:ok, %{order | status: :delivered}}
-              :cancelled -> {:error, :already_cancelled}
+          defmodule Orders do
+            def process(order) do
+              case order.status do
+                :pending -> {:ok, %{order | status: :processing}}
+                :processing -> {:ok, %{order | status: :shipped}}
+                :shipped -> {:ok, %{order | status: :delivered}}
+                :cancelled -> {:error, :already_cancelled}
+              end
             end
           end
           """,
@@ -57,6 +60,13 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
     block unblock lock unlock freeze thaw
   )
 
+  # Threaded check configuration, so the branching helper stays below the
+  # parameter-count limit.
+  defmodule Ctx do
+    @moduledoc false
+    defstruct [:source_file, :status_fields, :min_states]
+  end
+
   @impl true
   def run(%SourceFile{} = source_file, params) do
     status_fields = params_get(params, :status_field_names)
@@ -81,27 +91,21 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
          min_states
        )
        when is_list(meta) do
-    if accesses_status_field?(condition, status_fields) do
-      states = extract_branch_literals(node)
+    ctx = %Ctx{source_file: source_file, status_fields: status_fields, min_states: min_states}
+    check_status_branching(node, condition, meta, issues, ctx)
+  end
 
-      if MapSet.size(states) >= min_states do
-        line = Keyword.get(meta, :line)
-
-        issue =
-          format_issue(source_file,
-            message:
-              "Branching on #{MapSet.size(states)} status values (#{format_states(states)}) -- consider replacing with an FSM",
-            trigger: "case",
-            line_no: line
-          )
-
-        {node, [issue | issues]}
-      else
-        {node, issues}
-      end
-    else
-      {node, issues}
-    end
+  # `case order.status do ... end` is emitted as `:pattern_match`.
+  defp traverse(
+         {:pattern_match, meta, [condition | _arms]} = node,
+         issues,
+         source_file,
+         status_fields,
+         min_states
+       )
+       when is_list(meta) do
+    ctx = %Ctx{source_file: source_file, status_fields: status_fields, min_states: min_states}
+    check_status_branching(node, condition, meta, issues, ctx)
   end
 
   # Tier 2: Assignment to status field
@@ -117,7 +121,7 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
       state_value = extract_literal_value(value)
 
       if state_value do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         issue =
           format_issue(source_file,
@@ -148,7 +152,7 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
     func_name = extract_function_name(meta)
 
     if func_name && matches_transition_verb?(func_name) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -167,6 +171,16 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
   defp traverse(node, issues, _source_file, _status_fields, _min_states), do: {node, issues}
 
   # -- Helpers --
+
+  # `order.status` is emitted as `Map.fetch!(order, :status)`.
+  defp accesses_status_field?(
+         {:function_call, meta, [_receiver, {:literal, lit_meta, field}]},
+         status_fields
+       )
+       when is_list(meta) and is_list(lit_meta) do
+    Keyword.get(meta, :name) in ~W(Map.fetch! Map.fetch) and
+      to_string(field) in status_fields
+  end
 
   defp accesses_status_field?({:field_access, meta, _children}, status_fields) do
     field_name = Keyword.get(meta, :field) || Keyword.get(meta, :name)
@@ -197,7 +211,8 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
 
   defp assigns_to_status_field?(_target, _status_fields), do: false
 
-  defp extract_branch_literals({:conditional, _meta, [_condition | branches]}) do
+  defp extract_branch_literals({kind, _meta, [_condition | branches]})
+       when kind in [:conditional, :pattern_match] do
     branches
     |> List.flatten()
     |> Enum.reduce(MapSet.new(), fn branch, acc ->
@@ -262,5 +277,27 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
     |> MapSet.to_list()
     |> Enum.sort()
     |> Enum.map_join(", ", &inspect/1)
+  end
+
+  defp check_status_branching(node, condition, meta, issues, %Ctx{} = ctx) do
+    if accesses_status_field?(condition, ctx.status_fields) do
+      states = extract_branch_literals(node)
+
+      if MapSet.size(states) >= ctx.min_states do
+        issue =
+          format_issue(ctx.source_file,
+            message:
+              "Branching on #{MapSet.size(states)} status values (#{format_states(states)}) -- consider replacing with an FSM",
+            trigger: "case",
+            line_no: CheckUtils.line_of(meta)
+          )
+
+        {node, [issue | issues]}
+      else
+        {node, issues}
+      end
+    else
+      {node, issues}
+    end
   end
 end

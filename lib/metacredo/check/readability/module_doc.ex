@@ -70,7 +70,7 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
     if has_doc_comment?(children) do
       {node, issues}
     else
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Design.LowCohesion do
   use MetaCredo.Check,
     category: :design,
     base_priority: :normal,
+    confidence: :low,
     param_defaults: [min_functions: 3, max_disjoint_groups: 2],
     explanations: [
       check: """
@@ -72,7 +73,7 @@ defmodule MetaCredo.Check.Design.LowCohesion do
       groups = count_disjoint_groups(functions)
 
       if groups > max_groups do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         issue =
           format_issue(source_file,

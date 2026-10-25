@@ -82,7 +82,8 @@ defmodule MetaCredo.MixProject do
         "format --check-formatted",
         "credo --strict",
         "compile --warnings-as-errors",
-        "dialyzer"
+        "dialyzer",
+        "metacredo --strict"
       ]
     ]
   end

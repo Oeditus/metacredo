@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.MissingErrorHandling do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :high,
     tags: [:returns],
     explanations: [
       check: """
@@ -52,7 +53,7 @@ defmodule MetaCredo.Check.Warning.MissingErrorHandling do
          source_file
        )
        when is_list(meta) and is_list(ok_meta) do
-    line = Keyword.get(meta, :line)
+    line = CheckUtils.line_of(meta)
 
     issue =
       format_issue(source_file,
@@ -75,7 +76,7 @@ defmodule MetaCredo.Check.Warning.MissingErrorHandling do
          source_file
        )
        when is_list(meta) and is_list(ok_meta) do
-    line = Keyword.get(meta, :line)
+    line = CheckUtils.line_of(meta)
 
     issue =
       format_issue(source_file,

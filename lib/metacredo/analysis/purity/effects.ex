@@ -34,14 +34,21 @@ defmodule MetaCredo.Analysis.Purity.Effects do
   def detect({:map, _meta, _children}), do: []
   def detect(_), do: []
 
+  # Effect categories in priority order: the first matching predicate wins.
+  defp effect_classifiers do
+    [
+      {:io, &io_function?/1},
+      {:random, &random_function?/1},
+      {:time, &time_function?/1},
+      {:network, &network_function?/1},
+      {:database, &database_function?/1}
+    ]
+  end
+
   defp classify_function_call(name) do
-    cond do
-      io_function?(name) -> [:io]
-      random_function?(name) -> [:random]
-      time_function?(name) -> [:time]
-      network_function?(name) -> [:network]
-      database_function?(name) -> [:database]
-      true -> []
+    case Enum.find(effect_classifiers(), fn {_effect, pred} -> pred.(name) end) do
+      {effect, _pred} -> [effect]
+      nil -> []
     end
   end
 

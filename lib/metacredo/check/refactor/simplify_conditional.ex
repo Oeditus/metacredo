@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Refactor.SimplifyConditional do
   use MetaCredo.Check,
     category: :refactor,
     base_priority: :low,
+    confidence: :high,
     explanations: [
       check: """
       Detects conditionals that return boolean literals and can be simplified
@@ -61,7 +62,7 @@ defmodule MetaCredo.Check.Refactor.SimplifyConditional do
        )
        when is_list(meta) do
     if boolean_literal?(then_meta) and boolean_literal?(else_meta) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -90,7 +91,7 @@ defmodule MetaCredo.Check.Refactor.SimplifyConditional do
        )
        when is_list(meta) do
     if boolean_literal?(then_meta) and boolean_literal?(else_meta) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -119,7 +120,7 @@ defmodule MetaCredo.Check.Refactor.SimplifyConditional do
        )
        when is_list(meta) do
     if boolean_literal?(else_meta) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

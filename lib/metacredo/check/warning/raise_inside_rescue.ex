@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.RaiseInsideRescue do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :high,
     explanations: [
       check: """
       Detects bare `raise` or `throw` inside rescue/exception handling blocks

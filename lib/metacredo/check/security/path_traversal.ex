@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.PathTraversal do
   use MetaCredo.Check,
     category: :security,
     base_priority: :higher,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects potential Path Traversal vulnerabilities (CWE-22).
@@ -78,55 +80,38 @@ defmodule MetaCredo.Check.Security.PathTraversal do
     issues
   end
 
-  # Detect file/path operations with tainted arguments
+  # Detect file/path operations with tainted arguments.
+  #
+  # The two branches differ only in message and severity, so the predicate is
+  # resolved first and the issue is built once.
   defp traverse({:function_call, meta, args} = node, issues, source_file)
        when is_list(meta) do
     func_name = Keyword.get(meta, :name, "")
-    line = Keyword.get(meta, :line)
 
-    cond do
-      file_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
-          has_tainted_arg?(args) ->
-        {node,
-         [
-           format_issue(source_file,
-             message:
-               "Potential path traversal: file operation with user-controlled path in '#{func_name}'",
-             trigger: func_name,
-             line_no: line,
-             severity: :error,
-             metadata: %{cwe: 22, function: func_name}
-           )
-           | issues
-         ]}
-
-      path_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
-          has_tainted_arg?(args) ->
-        {node,
-         [
-           format_issue(source_file,
-             message:
-               "Potential path traversal: '#{func_name}' with user-controlled input -- validate result",
-             trigger: func_name,
-             line_no: line,
-             severity: :warning,
-             metadata: %{cwe: 22, function: func_name}
-           )
-           | issues
-         ]}
-
-      true ->
+    case tainted_path_operation(func_name, args) do
+      nil ->
         {node, issues}
+
+      {severity, message} ->
+        issue =
+          format_issue(source_file,
+            message: message,
+            trigger: func_name,
+            line_no: CheckUtils.line_of(meta),
+            severity: severity,
+            metadata: %{cwe: 22, function: func_name}
+          )
+
+        {node, [issue | issues]}
     end
   end
 
-  # Detect path concatenation with user input
   defp traverse({:binary_op, meta, [left, right]} = node, issues, source_file)
        when is_list(meta) do
     operator = Keyword.get(meta, :operator)
 
     if operator in [:concat, :<>, :+, :/] do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       cond do
         looks_like_path?(left) and contains_user_input?(right) ->
@@ -163,33 +148,44 @@ defmodule MetaCredo.Check.Security.PathTraversal do
 
   defp traverse(node, issues, _source_file), do: {node, issues}
 
+  defp tainted_path_operation(func_name, args) do
+    cond do
+      CheckUtils.safe_stdlib_call?(func_name) ->
+        nil
+
+      file_function?(func_name) and has_tainted_arg?(args) ->
+        {:error,
+         "Potential path traversal: file operation with user-controlled path in '#{func_name}'"}
+
+      path_function?(func_name) and has_tainted_arg?(args) ->
+        {:warning,
+         "Potential path traversal: '#{func_name}' with user-controlled input -- validate result"}
+
+      true ->
+        nil
+    end
+  end
+
+  # Detect path concatenation with user input
   # --- Private Helpers ---
 
-  defp file_function?(func_name) when is_binary(func_name) do
-    func_lower = String.downcase(func_name)
+  defp file_function?(func_name), do: matches_any?(func_name, @file_functions)
 
-    Enum.any?(@file_functions, fn pattern ->
-      String.contains?(func_lower, String.downcase(pattern))
-    end)
-  end
-
-  defp file_function?(_), do: false
-
-  defp path_function?(func_name) when is_binary(func_name) do
-    func_lower = String.downcase(func_name)
-
-    Enum.any?(@path_functions, fn pattern ->
-      String.contains?(func_lower, String.downcase(pattern))
-    end)
-  end
-
-  defp path_function?(_), do: false
+  defp path_function?(func_name), do: matches_any?(func_name, @path_functions)
 
   defp has_tainted_arg?(args) when is_list(args) do
     Enum.any?(args, &contains_user_input?/1)
   end
 
   defp has_tainted_arg?(_), do: false
+
+  # Case-insensitive substring match of `func_name` against any pattern.
+  defp matches_any?(func_name, patterns) when is_binary(func_name) do
+    func_lower = String.downcase(func_name)
+    Enum.any?(patterns, &String.contains?(func_lower, String.downcase(&1)))
+  end
+
+  defp matches_any?(_func_name, _patterns), do: false
 
   defp contains_user_input?(node) do
     case node do

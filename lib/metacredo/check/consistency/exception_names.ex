@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Consistency.ExceptionNames do
   use MetaCredo.Check,
     category: :consistency,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects exception or error container names that do not end in "Error"
@@ -69,7 +70,7 @@ defmodule MetaCredo.Check.Consistency.ExceptionNames do
     name = CheckUtils.safe_name(meta)
 
     if container_type == :class and suggests_error?(name) and not has_valid_suffix?(name) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

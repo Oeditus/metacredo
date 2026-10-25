@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.InsecureDirectObjectReference do
   use MetaCredo.Check,
     category: :security,
     base_priority: :high,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects Insecure Direct Object Reference (IDOR) vulnerabilities (CWE-639).
@@ -65,9 +67,8 @@ defmodule MetaCredo.Check.Security.InsecureDirectObjectReference do
        when is_list(meta) do
     func_name = Keyword.get(meta, :name, "")
 
-    if fetch_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
-         has_user_supplied_id?(args) do
-      line = Keyword.get(meta, :line)
+    if idor_risk?(func_name, args) do
+      line = CheckUtils.line_of(meta)
 
       {node,
        [
@@ -128,4 +129,11 @@ defmodule MetaCredo.Check.Security.InsecureDirectObjectReference do
   end
 
   defp has_user_supplied_id?(_), do: false
+
+  # A call is an IDOR risk when it looks like a fetch, is not a stdlib call,
+  # and one of its arguments is a user-supplied identifier.
+  defp idor_risk?(func_name, args) do
+    fetch_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
+      has_user_supplied_id?(args)
+  end
 end

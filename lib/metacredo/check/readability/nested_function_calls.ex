@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    confidence: :high,
     param_defaults: [max_nesting: 3],
     explanations: [
       check: """
@@ -18,17 +19,25 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
       examples: [
         elixir: [
           wrong: """
-          # Quadruple nesting -- must read inside-out to understand data flow
-          result = Enum.join(Enum.map(String.split(String.trim(input), ","), &String.trim/1), " | ")
+          # Five levels deep -- must read inside-out to understand data flow
+          def normalize(input) do
+            Enum.join(
+              Enum.map(String.split(String.trim(String.downcase(input)), ","), fn x ->
+                String.trim(x)
+              end),
+              " | "
+            )
+          end
           """,
           correct: """
           # Use pipes or intermediate variables to make the flow linear
-          result =
+          def normalize(input) do
             input
             |> String.trim()
             |> String.split(",")
-            |> Enum.map(&String.trim/1)
+            |> Enum.map(fn x -> String.trim(x) end)
             |> Enum.join(" | ")
+          end
           """
         ]
       ]
@@ -58,7 +67,7 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
       depth = call_nesting_depth(args)
 
       if depth > max_nesting do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         issue =
           format_issue(source_file,
@@ -88,6 +97,17 @@ defmodule MetaCredo.Check.Readability.NestedFunctionCalls do
   # chain reads linearly rather than inside-out. We still recurse into the pipe
   # step's arguments so that genuinely nested calls *within* a pipe are counted.
   defp arg_call_depth({:function_call, meta, nested_args})
+       when is_list(meta) and is_list(nested_args) do
+    if Keyword.get(meta, :pipe, false) do
+      call_nesting_depth(nested_args)
+    else
+      1 + call_nesting_depth(nested_args)
+    end
+  end
+
+  # `Enum.map/2`, `Enum.filter/2`, ... are emitted as `:collection_op` rather
+  # than `:function_call`, so they are a nesting level in their own right.
+  defp arg_call_depth({:collection_op, meta, nested_args})
        when is_list(meta) and is_list(nested_args) do
     if Keyword.get(meta, :pipe, false) do
       call_nesting_depth(nested_args)

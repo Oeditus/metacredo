@@ -3,6 +3,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
     category: :security,
     base_priority: :higher,
     tags: [:db, :security],
+    param_defaults: [check_exs: false],
     explanations: [
       check: """
       Detects potential SQL injection vulnerabilities (CWE-89).
@@ -10,8 +11,14 @@ defmodule MetaCredo.Check.Security.SQLInjection do
       Identifies code patterns where user input or variables are concatenated
       or interpolated into SQL query strings instead of using parameterized
       queries.
+
+      A string literal is only treated as SQL when it contains at least two
+      *distinct* SQL keywords matched on word boundaries, so HTML/JS heredocs
+      and prose that merely mention a single keyword are not reported.
       """,
-      params: [],
+      params: [
+        check_exs: "Check SQL patterns in .exs script/config files (default: false)"
+      ],
       examples: [
         elixir: [
           wrong: """
@@ -33,6 +40,9 @@ defmodule MetaCredo.Check.Security.SQLInjection do
       ]
     ]
 
+  @truncate_limit 50
+  @truncate_keep 47
+
   @sql_keywords ~W[SELECT INSERT UPDATE DELETE FROM WHERE JOIN DROP CREATE ALTER TRUNCATE EXEC EXECUTE]
 
   @query_functions ~W[
@@ -46,16 +56,24 @@ defmodule MetaCredo.Check.Security.SQLInjection do
   ]
 
   @impl true
-  def run(%SourceFile{} = source_file, _params) do
-    ast = SourceFile.ast(source_file)
-    doc_strings = CheckUtils.doc_string_contents(ast)
+  def run(%SourceFile{} = source_file, params) do
+    # `.exs` files are scripts/configs: they routinely embed HTML/JS heredocs
+    # and example query strings that are not executed as SQL. Mirrors the
+    # `check_exs` opt-in used by `Security.HardcodedValue`.
+    if not params_get(params, :check_exs) and
+         String.ends_with?(source_file.filename || "", ".exs") do
+      []
+    else
+      ast = SourceFile.ast(source_file)
+      doc_strings = CheckUtils.doc_string_contents(ast)
 
-    {_, issues} =
-      AST.prewalk(ast, [], fn node, acc ->
-        traverse(node, acc, source_file, doc_strings)
-      end)
+      {_, issues} =
+        AST.prewalk(ast, [], fn node, acc ->
+          traverse(node, acc, source_file, doc_strings)
+        end)
 
-    issues
+      issues
+    end
   end
 
   # Detect binary operations that concatenate SQL strings
@@ -77,7 +95,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
 
     if query_function?(func_name) and not CheckUtils.safe_stdlib_call?(func_name) and
          has_unsafe_sql_argument?(args) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       {node,
        [
@@ -100,7 +118,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
     if Keyword.get(meta, :subtype) == :string and
          not CheckUtils.doc_string?(doc_strings, value) and
          contains_sql_keywords?(value) and has_interpolation_markers?(value) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       {node,
        [
@@ -126,7 +144,7 @@ defmodule MetaCredo.Check.Security.SQLInjection do
     right_sql? = contains_sql_literal?(right)
     left_var? = variable_or_call?(left)
     right_var? = variable_or_call?(right)
-    line = Keyword.get(meta, :line)
+    line = CheckUtils.line_of(meta)
 
     cond do
       left_sql? and right_var? ->
@@ -166,9 +184,19 @@ defmodule MetaCredo.Check.Security.SQLInjection do
 
   defp contains_sql_literal?(_), do: false
 
+  # A single SQL keyword appearing as a *substring* is far too weak a signal:
+  # `document.createElement` contains "EXEC", and prose routinely contains
+  # "FROM". Require at least two *distinct* keywords matched on word
+  # boundaries before treating a literal as SQL at all.
   defp contains_sql_keywords?(value) when is_binary(value) do
-    upper = String.upcase(value)
-    Enum.any?(@sql_keywords, &String.contains?(upper, &1))
+    value
+    |> String.upcase()
+    |> then(fn upper -> Enum.count(@sql_keywords, &Regex.match?(keyword_regex(&1), upper)) end)
+    |> Kernel.>=(2)
+  end
+
+  defp keyword_regex(keyword) do
+    Regex.compile!("\\b" <> keyword <> "\\b")
   end
 
   defp variable_or_call?({:variable, _meta, _name}), do: true
@@ -214,6 +242,8 @@ defmodule MetaCredo.Check.Security.SQLInjection do
       String.contains?(value, dquote_pipe)
   end
 
-  defp truncate(s) when byte_size(s) > 50, do: String.slice(s, 0, 47) <> "..."
+  defp truncate(s) when byte_size(s) > @truncate_limit,
+    do: String.slice(s, 0, @truncate_keep) <> "..."
+
   defp truncate(s), do: s
 end

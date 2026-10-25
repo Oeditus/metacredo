@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.DeepNesting do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    confidence: :high,
     param_defaults: [max_nesting: 4],
     explanations: [
       check: """
@@ -21,13 +22,21 @@ defmodule MetaCredo.Check.Readability.DeepNesting do
                 {:ok, resource} ->
                   if authorized?(conn, resource) do
                     case validate(resource) do
-                      :ok -> render(conn, resource)
-                      {:error, reason} -> error(conn, reason)
+                      :ok ->
+                        case audit(resource) do
+                          :ok -> render(conn, resource)
+                          {:error, reason} -> error(conn, reason)
+                        end
+
+                      {:error, reason} ->
+                        error(conn, reason)
                     end
                   else
                     forbidden(conn)
                   end
-                {:error, _} -> not_found(conn)
+
+                {:error, _} ->
+                  not_found(conn)
               end
             else
               unauthorized(conn)
@@ -71,7 +80,7 @@ defmodule MetaCredo.Check.Readability.DeepNesting do
     depth = max_depth(children, 0)
 
     if depth > max_nesting do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

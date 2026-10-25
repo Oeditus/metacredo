@@ -49,7 +49,15 @@ defmodule MetaCredo.Check.WarningCredoTest do
   # ── UnsafeExec ──────────────────────────────────────────────────────
 
   describe "UnsafeExec" do
-    test "detects System.cmd with user input variable" do
+    test "detects System.cmd with a user-controlled command" do
+      ast = call("System.cmd", [var("user_input")], line: 5)
+      issues = run_check(Warning.UnsafeExec, ast: ast)
+      assert_issue(issues, message: ~r/command injection/i)
+    end
+
+    test "detects System.cmd whose argv contains user input" do
+      # The argv element is user-controlled, so the command may treat it as a
+      # path or flag -- reported, matching the check's documented example.
       ast = call("System.cmd", [literal_string("ls"), var("user_input")], line: 5)
       issues = run_check(Warning.UnsafeExec, ast: ast)
       assert_issue(issues, message: ~r/command injection/i)

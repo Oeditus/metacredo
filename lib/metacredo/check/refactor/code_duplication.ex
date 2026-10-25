@@ -2,31 +2,37 @@ defmodule MetaCredo.Check.Refactor.CodeDuplication do
   use MetaCredo.Check,
     category: :refactor,
     base_priority: :normal,
-    param_defaults: [min_body_size: 3],
+    param_defaults: [min_body_size: 8],
     explanations: [
       check: """
       Detects duplicate function bodies within the same module by comparing
       normalized AST structure. Functions with identical logic should be
       consolidated into a shared helper.
+
+      Bodies below `min_body_size` nodes are ignored: one-line predicates and
+      delegating wrappers are routinely identical by accident (`defp f?(x), do:
+      x in @list`), and reporting them is pure noise.
       """,
       params: [
         min_body_size:
-          "Minimum number of AST nodes in a function body to consider for duplication (default: 3)"
+          "Minimum number of AST nodes in a function body to consider for duplication (default: 8)"
       ],
       examples: [
         elixir: [
           wrong: """
           # Identical logic copy-pasted across two functions
-          def format_admin_name(user) do
-            first = String.capitalize(user.first_name)
-            last = String.upcase(user.last_name)
-            "\#{first} \#{last}"
-          end
+          defmodule Names do
+            def format_admin_name(user) do
+              first = String.capitalize(user.first_name)
+              last = String.upcase(user.last_name)
+              "\#{first} \#{last}"
+            end
 
-          def format_customer_name(user) do
-            first = String.capitalize(user.first_name)
-            last = String.upcase(user.last_name)
-            "\#{first} \#{last}"
+            def format_customer_name(user) do
+              first = String.capitalize(user.first_name)
+              last = String.upcase(user.last_name)
+              "\#{first} \#{last}"
+            end
           end
           """,
           correct: """
@@ -74,7 +80,7 @@ defmodule MetaCredo.Check.Refactor.CodeDuplication do
   # Collect all function definitions with their names and bodies
   defp collect_functions({:function_def, meta, children} = _node, acc) when is_list(meta) do
     name = Keyword.get(meta, :name, "anonymous")
-    line = Keyword.get(meta, :line)
+    line = CheckUtils.line_of(meta)
     [{name, line, children} | acc]
   end
 
@@ -104,18 +110,26 @@ defmodule MetaCredo.Check.Refactor.CodeDuplication do
     end)
   end
 
-  # Generate a structural fingerprint by normalizing variable names
+  # Generate a structural fingerprint by normalizing variable names.
+  #
+  # Location metadata must be stripped: two identical bodies on different
+  # lines would otherwise hash differently and never be reported.
   defp fingerprint(ast) do
     ast
     |> normalize_ast()
     |> :erlang.phash2()
   end
 
+  @location_keys [:line, :column, :file, :end_line, :end_column, :start_line, :start_column]
+
+  defp clean_meta(meta) when is_list(meta), do: Keyword.drop(meta, @location_keys)
+  defp clean_meta(meta), do: meta
+
   # Normalize AST by replacing variable names with placeholders
-  defp normalize_ast({:variable, meta, _name}), do: {:variable, meta, "_"}
+  defp normalize_ast({:variable, meta, _name}), do: {:variable, clean_meta(meta), "_"}
 
   defp normalize_ast({type, meta, children}) when is_list(children) do
-    {type, meta, Enum.map(children, &normalize_ast/1)}
+    {type, clean_meta(meta), Enum.map(children, &normalize_ast/1)}
   end
 
   defp normalize_ast(list) when is_list(list), do: Enum.map(list, &normalize_ast/1)

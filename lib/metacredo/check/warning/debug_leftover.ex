@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.DebugLeftover do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :high,
     explanations: [
       check: """
       Detects debug function calls left in code, such as `IO.inspect`,
@@ -66,7 +67,7 @@ defmodule MetaCredo.Check.Warning.DebugLeftover do
     fn_name = CheckUtils.safe_name(meta)
 
     if debug_function?(fn_name) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

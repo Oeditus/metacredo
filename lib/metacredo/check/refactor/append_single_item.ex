@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Refactor.AppendSingleItem do
   use MetaCredo.Check,
     category: :refactor,
     base_priority: :low,
+    confidence: :high,
     explanations: [
       check: """
       Detects `list ++ [item]` pattern. Appending to a list with `++` creates
@@ -41,31 +42,43 @@ defmodule MetaCredo.Check.Refactor.AppendSingleItem do
     issues
   end
 
+  # The Elixir adapter emits `a ++ b` as a `:function_call` named `"++"`,
+  # not as a `:binary_op`, so both shapes are matched.
+  defp traverse(
+         {:function_call, meta, [_left, {:list, _list_meta, [_single_element]}]} = node,
+         issues,
+         source_file
+       )
+       when is_list(meta) do
+    if Keyword.get(meta, :name) == "++" do
+      {node, [append_issue(meta, source_file) | issues]}
+    else
+      {node, issues}
+    end
+  end
+
   defp traverse(
          {:binary_op, meta, [_left, {:list, _list_meta, [_single_element]}]} = node,
          issues,
          source_file
        )
        when is_list(meta) do
-    operator = Keyword.get(meta, :operator)
-
-    if operator == :++ do
-      line = Keyword.get(meta, :line)
-
-      issue =
-        format_issue(source_file,
-          message:
-            "Appending single item with `++` is inefficient -- consider prepending with `[item | list]`",
-          trigger: "++",
-          line_no: line,
-          severity: :refactoring_opportunity
-        )
-
-      {node, [issue | issues]}
+    if Keyword.get(meta, :operator) == :++ do
+      {node, [append_issue(meta, source_file) | issues]}
     else
       {node, issues}
     end
   end
 
   defp traverse(node, issues, _sf), do: {node, issues}
+
+  defp append_issue(meta, source_file) do
+    format_issue(source_file,
+      message:
+        "Appending single item with `++` is inefficient -- consider prepending with `[item | list]`",
+      trigger: "++",
+      line_no: CheckUtils.line_of(meta),
+      severity: :refactoring_opportunity
+    )
+  end
 end

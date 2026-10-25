@@ -146,7 +146,7 @@ defmodule MetaCredo.Analysis.Complexity.Result do
   """
   @spec add_warning(t(), String.t()) :: t()
   def add_warning(%__MODULE__{} = result, warning) do
-    %{result | warnings: result.warnings ++ [warning]}
+    %{result | warnings: [warning | result.warnings]}
   end
 
   @doc """
@@ -263,7 +263,7 @@ defmodule MetaCredo.Analysis.Complexity.Result do
     |> check_cognitive(thresholds)
     |> check_nesting(thresholds)
     |> check_loc(thresholds)
-    |> update_summary()
+    |> refresh_summary()
   end
 
   # Private helpers
@@ -359,21 +359,28 @@ defmodule MetaCredo.Analysis.Complexity.Result do
     end
   end
 
-  defp update_summary(result) do
+  defp refresh_summary(result) do
     %{result | summary: generate_summary_from_result(result)}
   end
+
+  # Complexity bands, from lowest to highest. The first band whose thresholds
+  # all hold wins; the final entry is the catch-all.
+  @complexity_bands [
+    {5, 7, 2, "Code has low complexity"},
+    {10, 15, 3, "Code has moderate complexity"},
+    {20, 30, 5, "Code has high complexity"}
+  ]
+  @complexity_fallback "Code has very high complexity"
 
   defp generate_summary(metrics) do
     cyc = Map.get(metrics, :cyclomatic, 0)
     cog = Map.get(metrics, :cognitive, 0)
     nest = Map.get(metrics, :max_nesting, 0)
 
-    cond do
-      cyc <= 5 and cog <= 7 and nest <= 2 -> "Code has low complexity"
-      cyc <= 10 and cog <= 15 and nest <= 3 -> "Code has moderate complexity"
-      cyc <= 20 and cog <= 30 and nest <= 5 -> "Code has high complexity"
-      true -> "Code has very high complexity"
-    end
+    Enum.find_value(@complexity_bands, @complexity_fallback, fn {max_cyc, max_cog, max_nest,
+                                                                 label} ->
+      if cyc <= max_cyc and cog <= max_cog and nest <= max_nest, do: label
+    end)
   end
 
   defp generate_summary_from_result(%__MODULE__{} = result) do

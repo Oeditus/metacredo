@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInObanWorker do
   use MetaCredo.Check,
     category: :observability,
     base_priority: :normal,
+    confidence: :low,
     param_defaults: [
       job_behaviours: ~W[
         Oban.Worker
@@ -23,12 +24,14 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInObanWorker do
       for monitoring, debugging, and alerting on job execution.
 
       The check uses `callback_for` metadata produced by Metastatic's semantic
-      enricher to identify actual behaviour callbacks. Only functions whose
-      `callback_for` matches one of the configured `job_behaviours` are flagged.
+      enricher to identify actual behaviour callbacks. When that metadata is
+      absent -- as it is for Elixir, whose adapter does not emit it -- the
+      check falls back to detecting a `use <JobBehaviour>` directive
+      (`use Oban.Worker`, `use Broadway`, ...) in the enclosing module, which
+      is how job workers are declared in practice.
 
-      When `fallback_heuristic` is `true`, functions without `callback_for`
-      metadata are also checked using name-based `job_indicators` matching
-      (the legacy behaviour). This is off by default.
+      When `fallback_heuristic` is `true`, functions are additionally matched
+      by name against `job_indicators`.
       """,
       params: [
         job_behaviours:
@@ -43,50 +46,77 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInObanWorker do
         elixir: [
           wrong: """
           # Job execution is invisible -- no way to track duration or failures
-          def perform(%Oban.Job{args: %{"user_id" => id}}) do
-            send_digest_email(id)
+          defmodule MyApp.DigestWorker do
+            use Oban.Worker, queue: :mailers
+
+            @impl Oban.Worker
+            def perform(%Oban.Job{args: %{"user_id" => id}}) do
+              send_digest_email(id)
+            end
           end
           """,
           correct: """
           # Wrap with :telemetry.span/3 to track success, failure, and latency
-          def perform(%Oban.Job{args: %{"user_id" => id}}) do
-            :telemetry.span(
-              [:my_app, :workers, :digest_email],
-              %{user_id: id},
-              fn ->
-                result = send_digest_email(id)
-                {result, %{}}
-              end
-            )
+          defmodule MyApp.DigestWorker do
+            use Oban.Worker, queue: :mailers
+
+            @impl Oban.Worker
+            def perform(%Oban.Job{args: %{"user_id" => id}}) do
+              :telemetry.span(
+                [:my_app, :workers, :digest_email],
+                %{user_id: id},
+                fn ->
+                  result = send_digest_email(id)
+                  {result, %{}}
+                end
+              )
+            end
           end
           """
         ]
       ]
     ]
 
+  # Threaded check configuration. Bundling the four params into a struct
+  # keeps `traverse/3` readable and below the arity limit.
+  defmodule Config do
+    @moduledoc false
+    defstruct job_behaviours: [], telemetry_indicators: [], fallback?: false, job_indicators: []
+  end
+
   @impl true
   def run(%SourceFile{} = source_file, params) do
-    job_behaviours = params_get(params, :job_behaviours)
-    telemetry_indicators = params_get(params, :telemetry_indicators)
-    fallback? = params_get(params, :fallback_heuristic)
-    job_indicators = params_get(params, :job_indicators)
+    config = %Config{
+      job_behaviours: params_get(params, :job_behaviours),
+      telemetry_indicators: params_get(params, :telemetry_indicators),
+      fallback?: params_get(params, :fallback_heuristic),
+      job_indicators: params_get(params, :job_indicators)
+    }
+
+    ast = SourceFile.ast(source_file)
 
     {_, issues} =
-      source_file
-      |> SourceFile.ast()
-      |> AST.prewalk([], fn node, acc ->
-        traverse(
-          node,
-          acc,
-          source_file,
-          job_behaviours,
-          telemetry_indicators,
-          fallback?,
-          job_indicators
-        )
+      AST.prewalk(ast, [], fn node, acc ->
+        traverse(node, acc, source_file, config, worker_module?(ast, config))
       end)
 
     issues
+  end
+
+  # Elixir's adapter does not emit `callback_for`, so a worker is recognised
+  # by a `use <JobBehaviour>` directive anywhere in the file.
+  defp worker_module?(ast, config) do
+    {_, found} =
+      AST.prewalk(ast, false, fn
+        {:import, meta, _} = node, acc when is_list(meta) ->
+          source = Keyword.get(meta, :source, "")
+          {node, acc or source in config.job_behaviours}
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    found
   end
 
   # Match function definitions with callback_for metadata
@@ -94,24 +124,22 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInObanWorker do
          {:function_def, meta, children} = node,
          issues,
          source_file,
-         job_behaviours,
-         telemetry_indicators,
-         fallback?,
-         job_indicators
+         %Config{} = config,
+         worker_module?
        )
        when is_list(meta) do
     name = Keyword.get(meta, :name, "")
     callback_for = Keyword.get(meta, :callback_for)
 
     is_job_callback =
-      if callback_for do
-        callback_for in job_behaviours
-      else
-        fallback? and job_function?(name, job_indicators)
+      cond do
+        callback_for -> callback_for in config.job_behaviours
+        worker_module? -> name in ~W(perform execute run call)
+        true -> config.fallback? and job_function?(name, config.job_indicators)
       end
 
-    if is_job_callback and not body_has_telemetry?(children, telemetry_indicators) do
-      line = Keyword.get(meta, :line)
+    if is_job_callback and not body_has_telemetry?(children, config.telemetry_indicators) do
+      line = CheckUtils.line_of(meta)
 
       label = callback_for || "job"
 
@@ -129,7 +157,7 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryInObanWorker do
     end
   end
 
-  defp traverse(node, issues, _sf, _jb, _ti, _fb, _ji), do: {node, issues}
+  defp traverse(node, issues, _sf, _config, _worker), do: {node, issues}
 
   # -- Fallback heuristic helpers (only used when fallback_heuristic: true) --
 

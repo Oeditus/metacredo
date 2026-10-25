@@ -65,6 +65,44 @@ defmodule MetaCredo.Check.Utils do
   end
 
   @doc """
+  Returns the 1-based source line recorded in a node's metadata, or `nil`.
+
+  Metastatic does not attach `:line` to every node: for Elixir, only nodes
+  derived from forms that carry position information (e.g. `cond`, some
+  `function_def`s) get one, while plain `if`-derived `:conditional` nodes
+  arrive with empty metadata. Checks that read `meta[:line]` directly
+  therefore emit a proportion of issues with `line_no: nil`, which breaks
+  `mix metacredo explain file:line`, the code-snippet renderer, and GitHub
+  inline annotations.
+
+  Use this helper instead of `Keyword.get(meta, :line)`, and pass the
+  enclosing `:function_def` metadata as `fallback` so the issue still points
+  at the right function when the node itself has no position.
+
+  ## Examples
+
+      iex> CheckUtils.line_of([line: 42])
+      42
+
+      iex> CheckUtils.line_of([], [line: 7])
+      7
+
+      iex> CheckUtils.line_of([])
+      nil
+  """
+  @spec line_of(keyword(), keyword() | nil) :: pos_integer() | nil
+  def line_of(meta, fallback \\ nil)
+
+  def line_of(meta, fallback) when is_list(meta) do
+    case Keyword.get(meta, :line) do
+      line when is_integer(line) -> line
+      _ -> line_of(fallback, nil)
+    end
+  end
+
+  def line_of(_meta, _fallback), do: nil
+
+  @doc """
   Returns true if the function name belongs to a well-known standard library
   module that should never be flagged as user-facing I/O, HTTP, auth,
   file operations, etc.

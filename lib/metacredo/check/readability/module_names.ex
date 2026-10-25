@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects module names that do not follow PascalCase convention.
@@ -43,7 +44,7 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
     name_str = to_string(name)
 
     if name_str != "" and not Regex.match?(@pascal_case, name_str) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

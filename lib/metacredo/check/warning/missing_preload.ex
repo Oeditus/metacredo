@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.MissingPreload do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :low,
     tags: [:db],
     explanations: [
       check: """
@@ -50,8 +51,8 @@ defmodule MetaCredo.Check.Warning.MissingPreload do
     op_type = Keyword.get(meta, :op_type)
     collection = List.last(rest)
 
-    if op_type == :map and from_database_query?(collection) do
-      line = Keyword.get(meta, :line)
+    if op_type == :map and db_collection?(collection, source_file) do
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -76,8 +77,8 @@ defmodule MetaCredo.Check.Warning.MissingPreload do
        when is_list(meta) do
     loop_type = Keyword.get(meta, :loop_type)
 
-    if loop_type == :for and from_database_query?(collection) do
-      line = Keyword.get(meta, :line)
+    if loop_type == :for and db_collection?(collection, source_file) do
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -95,6 +96,31 @@ defmodule MetaCredo.Check.Warning.MissingPreload do
 
   defp traverse(node, issues, _source_file), do: {node, issues}
 
+  # The collection may be a direct query call (`Enum.map(Repo.all(Post), ...)`)
+  # or a variable bound to one (`posts = Repo.all(Post); Enum.map(posts, ...)`).
+  # The latter is by far the more common shape, so the binding is resolved.
+  defp db_collection?({:variable, _, name}, source_file) when is_binary(name) do
+    source_file
+    |> SourceFile.ast()
+    |> bound_to_db_query?(name)
+  end
+
+  defp db_collection?(collection, _source_file), do: from_database_query?(collection)
+
+  defp bound_to_db_query?(ast, name) do
+    {_, found} =
+      AST.prewalk(ast, false, fn
+        {kind, _meta, [{:variable, _, ^name}, value]} = node, acc
+        when kind in [:inline_match, :assignment] ->
+          {node, acc or from_database_query?(value)}
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    found
+  end
+
   defp from_database_query?({:function_call, meta, _args}) when is_list(meta) do
     case Keyword.get(meta, :op_kind) do
       op_kind when is_list(op_kind) ->
@@ -102,11 +128,30 @@ defmodule MetaCredo.Check.Warning.MissingPreload do
           Keyword.get(op_kind, :operation) in [:retrieve_all, :query]
 
       nil ->
-        fn_name = Keyword.get(meta, :name, "")
-        fn_lower = String.downcase(to_string(fn_name))
-        String.contains?(fn_lower, @query_functions)
+        query_call?(Keyword.get(meta, :name, ""))
     end
   end
 
   defp from_database_query?(_), do: false
+
+  # The call must be *module-qualified* and the module must look like a
+  # database layer. Checking only the method name matched `Sources.find/1`
+  # (contains `find`) and `Enum.map(source_files, ...)`.
+  @db_module_hints ~W(Repo Ecto Schema Query)
+
+  defp query_call?(name) when is_binary(name) do
+    case String.split(name, ".") do
+      [_bare] ->
+        false
+
+      parts ->
+        method = parts |> List.last() |> String.downcase()
+        module = parts |> Enum.drop(-1) |> Enum.join(".")
+
+        method in @query_functions and
+          Enum.any?(@db_module_hints, &String.contains?(module, &1))
+    end
+  end
+
+  defp query_call?(_), do: false
 end

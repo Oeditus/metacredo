@@ -36,6 +36,9 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
       ]
     ]
 
+  @truncate_limit 40
+  @truncate_keep 37
+
   @url_pattern ~r/^https?:\/\/[^\s]+$/
   @ip_pattern ~r/^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
 
@@ -74,33 +77,36 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
   defp traverse(node, issues, _ctx), do: {node, issues}
 
   defp check_value(value, meta, issues, {source_file, exclude_localhost, exclude_local_ips, _}) do
-    line = Keyword.get(meta, :line)
+    case classify_value(value, exclude_localhost, exclude_local_ips) do
+      nil ->
+        issues
 
+      {type, message} ->
+        [
+          format_issue(source_file,
+            message: message,
+            trigger: truncate(value),
+            line_no: CheckUtils.line_of(meta),
+            metadata: %{type: type}
+          )
+          | issues
+        ]
+    end
+  end
+
+  # Classifies a string literal as a hardcoded URL or IP, honouring the
+  # `exclude_localhost` / `exclude_local_ips` params. Returns `nil` when the
+  # value is not reportable.
+  defp classify_value(value, exclude_localhost, exclude_local_ips) do
     cond do
       url?(value) and not (exclude_localhost and localhost_url?(value)) ->
-        [
-          format_issue(source_file,
-            message: "Hardcoded URL found -- move to configuration",
-            trigger: truncate(value),
-            line_no: line,
-            metadata: %{type: :url}
-          )
-          | issues
-        ]
+        {:url, "Hardcoded URL found -- move to configuration"}
 
       ip?(value) and not (exclude_local_ips and local_ip?(value)) ->
-        [
-          format_issue(source_file,
-            message: "Hardcoded IP address found -- move to configuration",
-            trigger: value,
-            line_no: line,
-            metadata: %{type: :ip}
-          )
-          | issues
-        ]
+        {:ip, "Hardcoded IP address found -- move to configuration"}
 
       true ->
-        issues
+        nil
     end
   end
 
@@ -126,6 +132,8 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
       String.starts_with?(ip, "10.") or ip == "0.0.0.0"
   end
 
-  defp truncate(s) when byte_size(s) > 40, do: String.slice(s, 0, 37) <> "..."
+  defp truncate(s) when byte_size(s) > @truncate_limit,
+    do: String.slice(s, 0, @truncate_keep) <> "..."
+
   defp truncate(s), do: s
 end

@@ -77,7 +77,7 @@ defmodule MetaCredo.Check.Observability.TelemetryInRecursiveFunction do
 
     if name != "" and recursive?(name, children) and
          contains_telemetry?(children, telemetry_indicators) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

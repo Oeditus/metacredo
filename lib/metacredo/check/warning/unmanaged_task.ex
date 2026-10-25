@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :high,
     explanations: [
       check: """
       Detects `Task.async/1` and `Task.start/1` calls that are not routed
@@ -32,7 +33,7 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
       ]
     ]
 
-  @unsupervised_patterns ~W(Task.async Task.start Task.async_stream)
+  @unsupervised_patterns ~W(Task.async Task.start)
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do
@@ -51,7 +52,7 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
          source_file
        )
        when is_list(meta) do
-    line = Keyword.get(meta, :line)
+    line = CheckUtils.line_of(meta)
 
     issue =
       format_issue(source_file,
@@ -73,7 +74,7 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
     func_name = CheckUtils.safe_name(meta)
 
     if unsupervised_task?(func_name) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -92,9 +93,10 @@ defmodule MetaCredo.Check.Warning.UnmanagedTask do
   defp traverse(node, issues, _source_file), do: {node, issues}
 
   defp unsupervised_task?(func_name) when is_binary(func_name) do
-    # Match Task.async but not Task.Supervisor.async
-    Enum.any?(@unsupervised_patterns, &(func_name == &1)) or
-      (String.contains?(func_name, "Task.async") and
-         not String.contains?(func_name, "Supervisor"))
+    # `Task.async_stream/2` is deliberately *not* reported: unlike
+    # `Task.async/1` it is bounded by `max_concurrency`, links its workers to
+    # the caller, and is consumed synchronously by `Enum.*` -- so it cannot
+    # leak orphaned processes the way a fire-and-forget `Task.async` can.
+    func_name in @unsupervised_patterns
   end
 end

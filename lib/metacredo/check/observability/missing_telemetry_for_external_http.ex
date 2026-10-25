@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryForExternalHttp do
   use MetaCredo.Check,
     category: :observability,
     base_priority: :normal,
+    confidence: :low,
     param_defaults: [
       # Fragments that must appear in the MODULE part of the call to qualify as an
       # HTTP client library (e.g. "HTTPoison.get" matches because the module
@@ -57,52 +58,68 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryForExternalHttp do
       ]
     ]
 
+  # Threaded check configuration. Bundling the three params into a struct
+  # keeps `traverse/3` readable and below the arity limit.
+  defmodule Config do
+    @moduledoc false
+    defstruct client_modules: [], methods: [], telemetry_indicators: []
+  end
+
   @impl true
   def run(%SourceFile{} = source_file, params) do
-    client_modules = params_get(params, :http_client_modules)
-    methods = params_get(params, :http_methods)
-    telemetry_indicators = params_get(params, :telemetry_indicators)
+    config = %Config{
+      client_modules: params_get(params, :http_client_modules),
+      methods: params_get(params, :http_methods),
+      telemetry_indicators: params_get(params, :telemetry_indicators)
+    }
 
     {_, issues} =
       source_file
       |> SourceFile.ast()
-      |> AST.prewalk([], fn node, acc ->
-        traverse(node, acc, source_file, client_modules, methods, telemetry_indicators)
-      end)
+      |> then(fn ast -> walk(ast, [], source_file, config) end)
 
     issues
   end
 
-  # Detect HTTP client calls that are not wrapped with telemetry
-  defp traverse(
-         {:function_call, meta, _args} = node,
-         issues,
-         source_file,
-         client_modules,
-         methods,
-         telemetry_indicators
-       )
+  # A manual walk, because `AST.prewalk/3` cannot prune subtrees and an HTTP
+  # call already wrapped in `:telemetry.span/3` must not be reported.
+  defp walk({:function_call, meta, args}, issues, source_file, %Config{} = config)
        when is_list(meta) do
     name = Keyword.get(meta, :name, "")
 
-    if http_call?(name, client_modules, methods) and
-         not telemetry_call?(name, telemetry_indicators) do
-      line = Keyword.get(meta, :line)
+    cond do
+      telemetry_call?(name, config.telemetry_indicators) ->
+        {issues, nil}
 
-      issue =
-        format_issue(source_file,
-          message: "HTTP call '#{name}' without telemetry -- wrap with instrumentation",
-          trigger: to_string(name),
-          line_no: line
-        )
+      http_call?(name, config.client_modules, config.methods) ->
+        issue =
+          format_issue(source_file,
+            message: "HTTP call '#{name}' without telemetry -- wrap with instrumentation",
+            trigger: to_string(name),
+            line_no: CheckUtils.line_of(meta)
+          )
 
-      {node, [issue | issues]}
-    else
-      {node, issues}
+        {[issue | issues], walk_all(args, source_file, config)}
+
+      true ->
+        {issues, walk_all(args, source_file, config)}
     end
   end
 
-  defp traverse(node, issues, _sf, _cm, _m, _ti), do: {node, issues}
+  defp walk({_type, _meta, children}, issues, source_file, config) when is_list(children),
+    do: {issues, walk_all(children, source_file, config)}
+
+  defp walk(list, issues, source_file, config) when is_list(list),
+    do: {issues, walk_all(list, source_file, config)}
+
+  defp walk(_node, issues, _source_file, _config), do: {issues, nil}
+
+  defp walk_all(nodes, source_file, config) do
+    Enum.reduce(nodes, [], fn node, acc ->
+      {issues, _} = walk(node, [], source_file, config)
+      issues ++ acc
+    end)
+  end
 
   # A call qualifies as an HTTP call only when:
   #   1. It is module-qualified (contains a dot) — local helpers are never HTTP clients
@@ -115,7 +132,13 @@ defmodule MetaCredo.Check.Observability.MissingTelemetryForExternalHttp do
 
       parts ->
         module = parts |> Enum.drop(-1) |> Enum.join(".") |> String.downcase()
-        method = parts |> List.last() |> String.downcase()
+        # `get!`/`get?` are the same verb as `get`.
+        method =
+          parts
+          |> List.last()
+          |> String.downcase()
+          |> String.trim_trailing("!")
+          |> String.trim_trailing("?")
 
         Enum.any?(client_modules, &String.contains?(module, &1)) and
           Enum.any?(methods, fn m ->

@@ -12,8 +12,10 @@ defmodule MetaCredo.Check.Readability.Specs do
         elixir: [
           wrong: """
           # No spec -- callers can't tell what types are accepted or returned
-          def calculate_discount(price, rate) do
-            price * (1 - rate)
+          defmodule Pricing do
+            def calculate_discount(price, rate) do
+              price * (1 - rate)
+            end
           end
           """,
           correct: """
@@ -96,7 +98,7 @@ defmodule MetaCredo.Check.Readability.Specs do
     acc =
       if visibility == :public and not spec_seen and
            not (skip and callback_name?(name)) do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         issue =
           format_issue(source_file,

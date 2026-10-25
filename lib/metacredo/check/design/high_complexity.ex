@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Design.HighComplexity do
   use MetaCredo.Check,
     category: :design,
     base_priority: :high,
+    confidence: :high,
     param_defaults: [max_complexity: 10],
     explanations: [
       check: """
@@ -22,20 +23,43 @@ defmodule MetaCredo.Check.Design.HighComplexity do
       examples: [
         elixir: [
           wrong: """
-          # High cyclomatic complexity: every branch adds a path
+          # High cyclomatic complexity: every branch adds a path through the
+          # function, so the number of cases to reason about (and to test)
+          # grows multiplicatively
           def process(order) do
-            if order.type == :premium do
-              if order.region == :eu do
+            cond do
+              order.type == :premium and order.region == :eu ->
                 if order.amount > 1000, do: apply_vat(order), else: order
-              else
+
+              order.type == :premium ->
                 if order.amount > 500, do: apply_discount(order), else: order
-              end
-            else
-              if order.flags[:promotional] do
-                if order.coupon, do: apply_coupon(order), else: order
-              else
+
+              order.flags[:promotional] and order.coupon ->
+                if order.amount > 100, do: apply_coupon(order), else: order
+
+              order.flags[:promotional] ->
+                if order.amount > 50, do: apply_small_coupon(order), else: order
+
+              order.region == :eu ->
+                if order.amount > 200, do: apply_vat(order), else: order
+
+              order.region == :us ->
+                if order.amount > 300, do: apply_state_tax(order), else: order
+
+              order.amount > 1000 ->
+                if order.currency == :usd, do: apply_bulk_discount(order), else: order
+
+              order.amount > 500 ->
+                if order.currency == :usd, do: apply_discount(order), else: order
+
+              order.amount > 100 ->
+                if order.currency == :eur, do: apply_vat(order), else: order
+
+              order.amount > 50 ->
+                if order.currency == :eur, do: apply_small_coupon(order), else: order
+
+              true ->
                 order
-              end
             end
           end
           """,
@@ -77,7 +101,7 @@ defmodule MetaCredo.Check.Design.HighComplexity do
     complexity = get_node_complexity(node, children)
 
     if complexity > max_complexity do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -118,7 +142,16 @@ defmodule MetaCredo.Check.Design.HighComplexity do
     end
   end
 
-  # Count decision points (each adds a path through the code)
+  # Count decision points (each adds a path through the code).
+  #
+  # `children` here is the function body as a *list*, which the node-shaped
+  # clauses below would otherwise fall through to `count_decision_points/1`'s
+  # list clause -- that is handled explicitly so a body of conditionals is
+  # counted correctly.
+  defp count_decision_points(children) when is_list(children) do
+    Enum.reduce(children, 0, fn c, acc -> acc + count_decision_points(c) end)
+  end
+
   defp count_decision_points({:conditional, _meta, children}) when is_list(children) do
     1 + Enum.reduce(children, 0, fn c, acc -> acc + count_decision_points(c) end)
   end
@@ -157,10 +190,6 @@ defmodule MetaCredo.Check.Design.HighComplexity do
 
   defp count_decision_points({_type, _meta, children}) when is_list(children) do
     Enum.reduce(children, 0, fn c, acc -> acc + count_decision_points(c) end)
-  end
-
-  defp count_decision_points(list) when is_list(list) do
-    Enum.reduce(list, 0, fn c, acc -> acc + count_decision_points(c) end)
   end
 
   defp count_decision_points(nil), do: 0

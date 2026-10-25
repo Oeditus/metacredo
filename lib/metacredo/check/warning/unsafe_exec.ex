@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :high,
+    confidence: :low,
     explanations: [
       check: """
       Detects `System.cmd`, `os:cmd`, `:os.cmd`, or similar execution calls
@@ -59,7 +60,7 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
     fn_lower = String.downcase(fn_name)
 
     if exec_function?(fn_lower) and has_user_input_arg?(args) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -77,17 +78,32 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
 
   defp traverse(node, issues, _source_file), do: {node, issues}
 
+  # Only genuine shell-exec primitives count. Substring matching on `cmd`
+  # also matched `System.cmd`'s *own* name in every call, and `exec` matched
+  # `execute_query`.
   defp exec_function?(fn_lower) do
-    Enum.any?(@exec_patterns, &String.contains?(fn_lower, &1))
+    fn_lower in @exec_patterns or
+      Enum.any?(@exec_patterns, &String.ends_with?(fn_lower, "." <> &1))
   end
 
-  defp has_user_input_arg?(args) do
-    Enum.any?(args, &user_input_node?/1)
-  end
+  # `System.cmd/3` is *not* shell-interpreted, so a tainted argv element is
+  # only dangerous when the command binary itself is tainted. But `:os.cmd/1`
+  # and `eval`/`exec` take a single shell string, where any tainted fragment
+  # injects.
+  #
+  # `System.cmd("pandoc", [user_input, ...])` is still reported: the argv
+  # element is user-controlled and pandoc may interpret it as a path/flag, so
+  # the documented example expects a finding. Only a *literal* command with
+  # *literal-only* argv is considered safe.
+  defp has_user_input_arg?(args) when is_list(args), do: Enum.any?(args, &user_input_node?/1)
 
   defp user_input_node?({:variable, _meta, name}) when is_binary(name) do
     lower = String.downcase(name)
-    Enum.any?(@user_input_patterns, &String.contains?(lower, &1))
+
+    Enum.any?(@user_input_patterns, fn pattern ->
+      lower == pattern or String.starts_with?(lower, pattern <> "_") or
+        String.ends_with?(lower, "_" <> pattern)
+    end)
   end
 
   defp user_input_node?({_type, _meta, children}) when is_list(children) do

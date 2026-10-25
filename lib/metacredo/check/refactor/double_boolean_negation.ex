@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Refactor.DoubleBooleanNegation do
   use MetaCredo.Check,
     category: :refactor,
     base_priority: :low,
+    confidence: :high,
     explanations: [
       check: """
       Detects `!!value` (double boolean negation). While commonly used to

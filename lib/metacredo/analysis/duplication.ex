@@ -27,6 +27,7 @@ defmodule MetaCredo.Analysis.Duplication do
   alias MetaCredo.Analysis.Duplication.{Fingerprint, Result, Similarity}
   alias Metastatic.{AST, Document}
 
+  require Logger
   @dialyzer :no_opaque
 
   @type detect_opts :: [
@@ -41,35 +42,39 @@ defmodule MetaCredo.Analysis.Duplication do
   @doc "Detects duplication between two documents."
   @spec detect(Document.t(), Document.t(), detect_opts()) :: {:ok, Result.t()} | {:error, term()}
   def detect(%Document{ast: ast1} = doc1, %Document{ast: ast2} = doc2, opts \\ []) do
-    try do
-      if AST.conforms?(ast1) and AST.conforms?(ast2) do
-        threshold = Keyword.get(opts, :threshold, 0.8)
+    if AST.conforms?(ast1) and AST.conforms?(ast2) do
+      {:ok, classify(doc1, doc2, opts)}
+    else
+      {:ok, Result.no_duplicate()}
+    end
+  rescue
+    error ->
+      Logger.debug(fn -> "Duplication detection failed: #{inspect(error)}" end)
+      {:error, error}
+  end
 
-        result =
-          cond do
-            exact_match?(ast1, ast2) ->
-              build_type_i_result(doc1, doc2)
+  # Classifies a pair of conforming ASTs as a Type I / II / III clone or as
+  # "no duplicate", in decreasing order of confidence.
+  defp classify(%Document{ast: ast1} = doc1, %Document{ast: ast2} = doc2, opts) do
+    cond do
+      exact_match?(ast1, ast2) ->
+        build_type_i_result(doc1, doc2)
 
-            normalized_match?(ast1, ast2) ->
-              build_type_ii_result(doc1, doc2)
+      normalized_match?(ast1, ast2) ->
+        build_type_ii_result(doc1, doc2)
 
-            true ->
-              similarity_score = Similarity.calculate(ast1, ast2)
+      true ->
+        near_miss_or_none(doc1, doc2, ast1, ast2, Keyword.get(opts, :threshold, 0.8))
+    end
+  end
 
-              if similarity_score >= threshold do
-                build_type_iii_result(doc1, doc2, similarity_score)
-              else
-                Result.no_duplicate()
-              end
-          end
+  defp near_miss_or_none(doc1, doc2, ast1, ast2, threshold) do
+    similarity_score = Similarity.calculate(ast1, ast2)
 
-        {:ok, result}
-      else
-        {:ok, Result.no_duplicate()}
-      end
-    rescue
-      error ->
-        {:error, error}
+    if similarity_score >= threshold do
+      build_type_iii_result(doc1, doc2, similarity_score)
+    else
+      Result.no_duplicate()
     end
   end
 
@@ -89,46 +94,40 @@ defmodule MetaCredo.Analysis.Duplication do
   @doc "Detects duplicates across multiple documents."
   @spec detect_in_list([Document.t()], detect_opts()) :: {:ok, [map()]} | {:error, term()}
   def detect_in_list(documents, opts \\ []) when is_list(documents) do
-    try do
-      _threshold = Keyword.get(opts, :threshold, 0.8)
+    indexed_docs = index_documents(documents)
+    pairs = duplicate_pairs(indexed_docs, opts)
+    {:ok, group_clones(pairs, indexed_docs)}
+  rescue
+    error ->
+      Logger.debug(fn -> "List duplication detection failed: #{inspect(error)}" end)
+      {:error, error}
+  end
 
-      indexed_docs =
-        documents
-        |> Enum.with_index()
-        |> Enum.map(fn {doc, idx} ->
-          %{
-            doc: doc,
-            index: idx,
-            exact_fp: Fingerprint.exact(doc.ast),
-            normalized_fp: Fingerprint.normalized(doc.ast)
-          }
-        end)
+  defp index_documents(documents) do
+    documents
+    |> Enum.with_index()
+    |> Enum.map(fn {doc, idx} ->
+      %{
+        doc: doc,
+        index: idx,
+        exact_fp: Fingerprint.exact(doc.ast),
+        normalized_fp: Fingerprint.normalized(doc.ast)
+      }
+    end)
+  end
 
-      pairs =
-        for i <- 0..(length(indexed_docs) - 1)//1,
-            j <- (i + 1)..(length(indexed_docs) - 1)//1 do
-          doc1_info = Enum.at(indexed_docs, i)
-          doc2_info = Enum.at(indexed_docs, j)
+  # Every unordered pair of documents that is worth comparing and turns out
+  # to be a duplicate, as `{index_a, index_b, result}`.
+  defp duplicate_pairs(indexed_docs, opts) do
+    last = length(indexed_docs) - 1
 
-          if should_compare?(doc1_info, doc2_info) do
-            case detect(doc1_info.doc, doc2_info.doc, opts) do
-              {:ok, %{duplicate?: true} = result} ->
-                {doc1_info.index, doc2_info.index, result}
-
-              _ ->
-                nil
-            end
-          else
-            nil
-          end
-        end
-        |> Enum.reject(&is_nil/1)
-
-      groups = group_clones(pairs, indexed_docs)
-      {:ok, groups}
-    rescue
-      error ->
-        {:error, error}
+    for i <- 0..last//1,
+        j <- (i + 1)..last//1,
+        doc1_info = Enum.at(indexed_docs, i),
+        doc2_info = Enum.at(indexed_docs, j),
+        should_compare?(doc1_info, doc2_info),
+        {:ok, %{duplicate?: true} = result} <- [detect(doc1_info.doc, doc2_info.doc, opts)] do
+      {doc1_info.index, doc2_info.index, result}
     end
   end
 

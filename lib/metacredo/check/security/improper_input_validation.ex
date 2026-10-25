@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
   use MetaCredo.Check,
     category: :security,
     base_priority: :high,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects improper input validation patterns (CWE-20).
@@ -15,8 +17,10 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
         elixir: [
           wrong: """
           # User input flows directly into a sensitive operation
-          def search(query) do
-            Repo.query!("SELECT * FROM items WHERE name = '\#{query}'")
+          defmodule Search do
+            def search(query) do
+              Repo.query!("SELECT * FROM items WHERE name = '\#{query}'")
+            end
           end
           """,
           correct: """
@@ -83,7 +87,7 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
       has_sensitive_use? = has_sensitive_input_use?(body_list)
 
       if has_sensitive_use? and not has_validation? do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -110,7 +114,7 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
     func_name = Keyword.get(meta, :name, "")
 
     if sensitive_operation?(func_name) and has_direct_input_argument?(args) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       {node,
        [
@@ -149,26 +153,25 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
     Enum.any?(body, &contains_validation?/1)
   end
 
+  # Node types that unconditionally indicate validation is present.
+  @validation_node_types [:case, :with]
+
+  # Node types whose children are scanned for validation.
+  @recursive_node_types [:pipe, :block]
+
   defp contains_validation?(node) do
     case node do
       {:function_call, meta, _args} when is_list(meta) ->
-        func_name = Keyword.get(meta, :name, "")
-        validation_function?(func_name)
-
-      {:pipe, _meta, stages} when is_list(stages) ->
-        Enum.any?(stages, &contains_validation?/1)
-
-      {:block, _meta, statements} when is_list(statements) ->
-        Enum.any?(statements, &contains_validation?/1)
+        validation_function?(Keyword.get(meta, :name, ""))
 
       {:conditional, _meta, [condition | _branches]} ->
         type_check?(condition) or contains_validation?(condition)
 
-      {:case, _meta, _} ->
+      {type, _meta, _children} when type in @validation_node_types ->
         true
 
-      {:with, _meta, _} ->
-        true
+      {type, _meta, children} when type in @recursive_node_types and is_list(children) ->
+        Enum.any?(children, &contains_validation?/1)
 
       tuple when is_tuple(tuple) ->
         tuple |> Tuple.to_list() |> Enum.any?(&contains_validation?/1)
@@ -243,20 +246,22 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
   defp has_direct_input_argument?(args) when is_list(args) do
     Enum.any?(args, fn
       {:variable, _meta, name} when is_binary(name) ->
-        name_lower = String.downcase(name)
-        Enum.any?(@user_input_sources, &String.contains?(name_lower, &1))
+        user_input_name?(name)
+
+      # `"... #{query} ..."` -- the interpolated parts are the input.
+      {:string_interpolation, _meta, parts} when is_list(parts) ->
+        has_direct_input_argument?(parts)
+
+      {:binary_op, _meta, operands} when is_list(operands) ->
+        has_direct_input_argument?(operands)
 
       {:map_access, _meta, _} ->
         true
 
       {:attribute_access, _meta, children} when is_list(children) ->
         Enum.any?(children, fn
-          {:variable, _, name} when is_binary(name) ->
-            name_lower = String.downcase(name)
-            Enum.any?(@user_input_sources, &String.contains?(name_lower, &1))
-
-          _ ->
-            false
+          {:variable, _, name} when is_binary(name) -> user_input_name?(name)
+          _ -> false
         end)
 
       _ ->
@@ -264,5 +269,8 @@ defmodule MetaCredo.Check.Security.ImproperInputValidation do
     end)
   end
 
-  defp has_direct_input_argument?(_), do: false
+  defp user_input_name?(name) do
+    name_lower = String.downcase(name)
+    Enum.any?(@user_input_sources, &String.contains?(name_lower, &1))
+  end
 end

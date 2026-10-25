@@ -59,4 +59,45 @@ defmodule MetaCredo.GitTest do
       end
     end
   end
+
+  describe "changed_lines/2" do
+    test "returns a map of file => line set" do
+      root = Git.repo_root(File.cwd!())
+
+      case Git.changed_lines(root, base: "HEAD~1", head: "HEAD") do
+        {:ok, lines} ->
+          assert is_map(lines)
+
+          Enum.each(lines, fn {path, set} ->
+            assert is_binary(path)
+            assert %MapSet{} = set
+            assert Enum.all?(set, &is_integer/1)
+          end)
+
+        {:error, _reason} ->
+          :ok
+      end
+    end
+
+    test "reports an error for a non-existent ref" do
+      root = Git.repo_root(File.cwd!())
+      assert {:error, _} = Git.changed_lines(root, base: "nonexistent_ref_abc123")
+    end
+
+    test "rejects a ref that looks like an option" do
+      root = Git.repo_root(File.cwd!())
+      assert {:error, msg} = Git.changed_lines(root, base: "--exec=evil")
+      assert msg =~ "invalid git ref"
+    end
+  end
+
+  describe "changed_lines!/2" do
+    test "raises on error" do
+      root = Git.repo_root(File.cwd!())
+
+      assert_raise RuntimeError, ~r/Failed to resolve git diff/, fn ->
+        Git.changed_lines!(root, base: "nonexistent_ref_abc123")
+      end
+    end
+  end
 end

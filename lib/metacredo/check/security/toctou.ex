@@ -220,7 +220,10 @@ defmodule MetaCredo.Check.Security.TOCTOU do
     Enum.flat_map(statements, &find_use_in_node(&1, check_info, meta, sf))
   end
 
-  defp find_use_in_node({:assignment, _, [_target, value]}, check_info, meta, sf) do
+  # `content = File.read!(path)` is emitted as `:inline_match` in Elixir;
+  # `:assignment` is the shape used by other adapters.
+  defp find_use_in_node({kind, _, [_target, value]}, check_info, meta, sf)
+       when kind in [:inline_match, :assignment] do
     find_use_in_node(value, check_info, meta, sf)
   end
 
@@ -287,7 +290,7 @@ defmodule MetaCredo.Check.Security.TOCTOU do
     use_functions = Map.get(@use_functions, check_info.type, [])
 
     if use_function?(name, use_functions) and same_resource?(args, check_info.resources) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       [
         format_issue(sf,

@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.MissingAuthentication do
   use MetaCredo.Check,
     category: :security,
     base_priority: :higher,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects critical functions without authentication checks (CWE-306).
@@ -76,7 +78,7 @@ defmodule MetaCredo.Check.Security.MissingAuthentication do
       if has_authentication_check?(body_list) do
         {node, issues}
       else
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -108,7 +110,7 @@ defmodule MetaCredo.Check.Security.MissingAuthentication do
       has_critical? = has_critical_action_functions?(body_list)
 
       if has_critical? and not has_module_auth? do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [

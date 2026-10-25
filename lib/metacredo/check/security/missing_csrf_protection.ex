@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.MissingCSRFProtection do
   use MetaCredo.Check,
     category: :security,
     base_priority: :high,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects state-changing endpoints without CSRF protection (CWE-352).
@@ -70,7 +72,7 @@ defmodule MetaCredo.Check.Security.MissingCSRFProtection do
       if has_csrf_check?(body_list) do
         {node, issues}
       else
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -95,7 +97,7 @@ defmodule MetaCredo.Check.Security.MissingCSRFProtection do
     func_lower = String.downcase(func_name)
 
     if func_lower in @state_changing_methods do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       {node,
        [

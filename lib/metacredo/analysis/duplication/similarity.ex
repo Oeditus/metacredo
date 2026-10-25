@@ -38,6 +38,8 @@ defmodule MetaCredo.Analysis.Duplication.Similarity do
 
   @dialyzer :no_opaque
 
+  @two 2
+
   @doc """
   Calculates overall similarity between two ASTs.
 
@@ -115,7 +117,7 @@ defmodule MetaCredo.Analysis.Duplication.Similarity do
         matching = count_matching_nodes(ast1, ast2)
 
         # Similarity = matching / average size
-        avg_size = (size1 + size2) / 2
+        avg_size = (size1 + size2) / @two
 
         if avg_size == 0 do
           0.0

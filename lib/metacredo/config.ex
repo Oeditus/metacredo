@@ -36,6 +36,8 @@ defmodule MetaCredo.Config do
 
   require Logger
 
+  @run_arity 2
+
   @type config :: %{
           name: String.t(),
           no_db: boolean(),
@@ -246,7 +248,7 @@ defmodule MetaCredo.Config do
         normalize_config(config)
 
       _ ->
-        Logger.warning("Invalid config file #{path}, using defaults")
+        Logger.warning(fn -> "Invalid config file #{path}, using defaults" end)
         default()
     end
   rescue
@@ -297,6 +299,6 @@ defmodule MetaCredo.Config do
 
   defp check_module?(mod) do
     Code.ensure_loaded?(mod) and
-      function_exported?(mod, :run, 2) and function_exported?(mod, :category, 0)
+      function_exported?(mod, :run, @run_arity) and function_exported?(mod, :category, 0)
   end
 end

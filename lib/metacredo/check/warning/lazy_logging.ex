@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.LazyLogging do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects Logger calls that use string interpolation directly instead of
@@ -45,7 +46,7 @@ defmodule MetaCredo.Check.Warning.LazyLogging do
     fn_name = CheckUtils.safe_name(meta)
 
     if logger_call?(fn_name) and has_interpolation_arg?(args) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -68,6 +69,11 @@ defmodule MetaCredo.Check.Warning.LazyLogging do
   defp has_interpolation_arg?(args) do
     Enum.any?(args, &contains_interpolation?/1)
   end
+
+  # A `fn -> ... end` argument is *already* lazy -- that is the fix this check
+  # recommends. Descending into it flagged correct code, so a lambda at the
+  # top level of any argument suppresses the finding.
+  defp contains_interpolation?({:lambda, _meta, _body}), do: false
 
   defp contains_interpolation?({:string_interpolation, _meta, _children}), do: true
 

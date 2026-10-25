@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
   use MetaCredo.Check,
     category: :security,
     base_priority: :higher,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects sensitive operations without authorization checks (CWE-862).
@@ -85,7 +87,7 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
       has_sensitive_op? = has_sensitive_operation?(body_list)
 
       if has_sensitive_op? and not has_auth? do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -113,7 +115,7 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
     func_name = Keyword.get(meta, :name, "")
 
     if sensitive_function?(func_name) and has_user_supplied_id?(args) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       {node,
        [
@@ -155,19 +157,22 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
     Enum.any?(body, &contains_authorization?/1)
   end
 
+  # Node types whose children are scanned for authorization checks.
+  @recursive_node_types [:block, :pipe]
+
+  # A `case` over MetaAST node types: the branching is a grammar lookup table,
+  # not tangled control flow. Suppressed deliberately.
+  # metacredo:disable-for-next-line MetaCredo.Check.Design.HighComplexity
   defp contains_authorization?(node) do
     case node do
       {:function_call, meta, _args} when is_list(meta) ->
-        func_name = Keyword.get(meta, :name, "")
-        auth_function?(func_name)
+        auth_function?(Keyword.get(meta, :name, ""))
 
       {:conditional, _meta, [condition | _branches]} ->
         contains_authorization?(condition)
 
       {:binary_op, meta, [left, right]} when is_list(meta) ->
-        operator = Keyword.get(meta, :operator)
-
-        if operator in [:==, :===, :!=, :!==] do
+        if Keyword.get(meta, :operator) in [:==, :===, :!=, :!==] do
           involves_auth_variable?(left) or involves_auth_variable?(right)
         else
           contains_authorization?(left) or contains_authorization?(right)
@@ -176,14 +181,11 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
       {:attribute_access, _meta, children} when is_list(children) ->
         Enum.any?(children, &involves_auth_variable?/1)
 
-      {:block, _meta, statements} when is_list(statements) ->
-        Enum.any?(statements, &contains_authorization?/1)
-
       {:case, _meta, [_expr | arms]} ->
         Enum.any?(arms, &contains_authorization?/1)
 
-      {:pipe, _meta, stages} when is_list(stages) ->
-        Enum.any?(stages, &contains_authorization?/1)
+      {type, _meta, children} when type in @recursive_node_types and is_list(children) ->
+        Enum.any?(children, &contains_authorization?/1)
 
       tuple when is_tuple(tuple) ->
         tuple |> Tuple.to_list() |> Enum.any?(&contains_authorization?/1)
@@ -207,16 +209,27 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
   defp auth_function?(_), do: false
 
   defp involves_auth_variable?({:variable, _meta, name}) when is_binary(name) do
-    name_lower = String.downcase(name)
+    auth_variable_name?(name)
+  end
 
-    Enum.any?(["user", "owner", "admin", "role", "permission"], &String.contains?(name_lower, &1))
+  # Field access is emitted by Metastatic as `Map.fetch!(recv, :field)`.
+  # Ownership checks are almost always comparisons of such accesses
+  # (`post.user_id == user.id`), so the receiver *and* the field name both
+  # have to be considered.
+  defp involves_auth_variable?({:function_call, meta, args}) when is_list(meta) do
+    case args do
+      [{:variable, _, receiver}, {:literal, _, field}] ->
+        auth_variable_name?(to_string(receiver)) or auth_variable_name?(to_string(field))
+
+      _ ->
+        Enum.any?(args, &involves_auth_variable?/1)
+    end
   end
 
   defp involves_auth_variable?({:attribute_access, _meta, children}) when is_list(children) do
     Enum.any?(children, fn
-      {:literal, _, attr} when is_binary(attr) ->
-        attr_lower = String.downcase(attr)
-        String.contains?(attr_lower, "user") or String.contains?(attr_lower, "id")
+      {:literal, _, attr} when is_binary(attr) or is_atom(attr) ->
+        auth_variable_name?(to_string(attr))
 
       other ->
         involves_auth_variable?(other)
@@ -224,6 +237,13 @@ defmodule MetaCredo.Check.Security.MissingAuthorization do
   end
 
   defp involves_auth_variable?(_), do: false
+
+  @auth_variable_indicators ~W(user owner admin role permission id)
+
+  defp auth_variable_name?(name) do
+    lower = String.downcase(name)
+    Enum.any?(@auth_variable_indicators, &String.contains?(lower, &1))
+  end
 
   defp has_sensitive_operation?(body) when is_list(body) do
     Enum.any?(body, &contains_sensitive_operation?/1)

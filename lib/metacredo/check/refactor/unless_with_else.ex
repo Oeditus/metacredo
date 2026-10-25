@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Refactor.UnlessWithElse do
   use MetaCredo.Check,
     category: :refactor,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects `unless ... else` constructs. `unless` with an `else` branch
@@ -47,10 +48,12 @@ defmodule MetaCredo.Check.Refactor.UnlessWithElse do
          source_file
        )
        when is_list(meta) do
-    kind = Keyword.get(meta, :conditional_kind)
+    # The Elixir adapter records the source form as `original_form: :unless`
+    # (older adapters used `conditional_kind`), so both are accepted.
+    kind = Keyword.get(meta, :conditional_kind) || Keyword.get(meta, :original_form)
 
     if kind == :unless and else_branch != nil do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

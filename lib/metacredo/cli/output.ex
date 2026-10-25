@@ -3,6 +3,11 @@ defmodule MetaCredo.CLI.Output do
   Terminal output formatting for MetaCredo analysis results.
   """
 
+  # Lines of context rendered around a flagged line by `explain`.
+  @snippet_radius 3
+  @ms_per_s 1000
+  @precision 1
+
   @category_colors %{
     consistency: :cyan,
     design: :green,
@@ -184,8 +189,8 @@ defmodule MetaCredo.CLI.Output do
     case File.read(filename) do
       {:ok, source} ->
         lines = source |> String.split("\n") |> Enum.with_index(1)
-        from = max(1, line_no - 3)
-        to = line_no + 3
+        from = max(1, line_no - @snippet_radius)
+        to = line_no + @snippet_radius
         context = Enum.filter(lines, fn {_l, n} -> n >= from and n <= to end)
 
         IO.puts("")
@@ -304,10 +309,8 @@ defmodule MetaCredo.CLI.Output do
 
   defp check_suffix(_), do: ""
 
-  defp print_footer(file_count, check_count, timing, summary) do
-    timing_s = if timing, do: Float.round(timing / 1000, 1), else: 0.0
-    total = summary.total
-
+  defp print_footer(file_count, check_count, timing, %{total: total} = summary) do
+    timing_s = if timing, do: Float.round(timing / @ms_per_s, @precision), else: 0.0
     IO.puts("")
 
     IO.puts(

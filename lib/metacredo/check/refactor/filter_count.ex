@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Refactor.FilterCount do
   use MetaCredo.Check,
     category: :refactor,
     base_priority: :low,
+    confidence: :high,
     explanations: [
       check: """
       Detects `Enum.filter(...) |> Enum.count()` patterns. Use
@@ -48,7 +49,7 @@ defmodule MetaCredo.Check.Refactor.FilterCount do
     count_name = to_string(Keyword.get(count_meta, :name, ""))
 
     if filter_call?(filter_name) and count_call?(count_name) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

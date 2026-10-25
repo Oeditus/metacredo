@@ -74,7 +74,7 @@ defmodule MetaCredo.Check.Warning.MissingHandleAsync do
       has_async = contains_async_delegation?(children)
 
       if has_blocking and not has_async do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         issue =
           format_issue(source_file,

@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Readability.ComplexConditional do
   use MetaCredo.Check,
     category: :readability,
     base_priority: :normal,
+    confidence: :high,
     param_defaults: [max_boolean_depth: 2],
     explanations: [
       check: """
@@ -46,7 +47,13 @@ defmodule MetaCredo.Check.Readability.ComplexConditional do
     issues
   end
 
-  # Check conditional nodes for complex boolean conditions
+  # Check conditional nodes for complex boolean conditions.
+  #
+  # `cond` desugars to a chain of nested `:conditional` nodes, so the
+  # *desugared* tree looks deeply nested even when the source has a flat list
+  # of clauses. Only the outermost clause of a `cond` carries
+  # `original_form: :cond`; the inner ones must be skipped or every
+  # multi-clause `cond` is reported as a complex conditional.
   defp traverse(
          {:conditional, meta, [condition | _rest]} = node,
          issues,
@@ -56,8 +63,8 @@ defmodule MetaCredo.Check.Readability.ComplexConditional do
        when is_list(meta) do
     depth = boolean_depth(condition)
 
-    if depth > max_depth do
-      line = Keyword.get(meta, :line)
+    if depth > max_depth and not cond_fallthrough?(node) do
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -74,6 +81,14 @@ defmodule MetaCredo.Check.Readability.ComplexConditional do
   end
 
   defp traverse(node, issues, _sf, _max), do: {node, issues}
+
+  # A conditional that is the `else` continuation of a `cond` clause has no
+  # source-level counterpart of its own.
+  defp cond_fallthrough?({:conditional, _meta, [_c, _t, else_branch]}) do
+    match?({:conditional, _, _}, else_branch)
+  end
+
+  defp cond_fallthrough?(_), do: false
 
   # Calculate nesting depth of boolean operations
   defp boolean_depth({:binary_op, meta, [left, right]}) when is_list(meta) do

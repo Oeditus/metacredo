@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Refactor.PipeChainStart do
   use MetaCredo.Check,
     category: :refactor,
     base_priority: :low,
+    confidence: :high,
     explanations: [
       check: """
       Detects pipe chains that start with a literal value. Pipes should
@@ -44,7 +45,7 @@ defmodule MetaCredo.Check.Refactor.PipeChainStart do
 
     case leftmost do
       {:literal, _lm, _value} ->
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         issue =
           format_issue(source_file,

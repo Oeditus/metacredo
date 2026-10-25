@@ -86,6 +86,11 @@ defmodule MetaCredo.Sources do
     language_for(filename) != nil
   end
 
+  # Parsing is CPU-bound and each task holds a full AST in memory, so we cap
+  # concurrency well below `System.schedulers_online/0` on large machines
+  # rather than spawning one parser per core (24 on a typical CI runner).
+  @max_parse_concurrency 8
+
   defp parse_all(filenames) do
     filenames
     |> Task.async_stream(
@@ -98,24 +103,29 @@ defmodule MetaCredo.Sources do
             {:error, reason} -> {:error, {:read_failed, filename, reason}}
           end
         rescue
-          e -> {:error, {:parse_failed, filename, e}}
+          e ->
+            Logger.debug(fn -> "Parse failed for #{filename}: #{inspect(e)}" end)
+            {:error, {:parse_failed, filename, e}}
         catch
-          kind, value -> {:error, {:parse_failed, filename, {kind, value}}}
+          kind, value ->
+            Logger.debug(fn -> "Parse threw for #{filename}: #{inspect({kind, value})}" end)
+            {:error, {:parse_failed, filename, {kind, value}}}
         end
       end,
       timeout: 30_000,
-      ordered: false
+      ordered: false,
+      max_concurrency: min(@max_parse_concurrency, System.schedulers_online())
     )
     |> Enum.reduce([], fn
       {:ok, {:ok, source_file}}, acc ->
         [source_file | acc]
 
       {:ok, {:error, reason}}, acc ->
-        Logger.debug("Skipping file: #{inspect(reason)}")
+        Logger.debug(fn -> "Skipping file: #{inspect(reason)}" end)
         acc
 
       {:exit, reason}, acc ->
-        Logger.debug("File parsing timed out: #{inspect(reason)}")
+        Logger.debug(fn -> "File parsing timed out: #{inspect(reason)}" end)
         acc
     end)
     |> Enum.reverse()

@@ -250,4 +250,149 @@ defmodule MetaCredo.ExecutionTest do
       refute MetaCredo.Check.Security.ImproperInputValidation in report.checks_run
     end
   end
+
+  describe "min_confidence filtering" do
+    # A file that trips both a high-confidence structural check
+    # (`UnlessWithElse`) and a low-confidence heuristic one
+    # (`ImperativeStatusHandling`).
+    @mixed_source """
+    defmodule Mixed do
+      def process(order) do
+        case order.status do
+          :pending -> {:ok, :processing}
+          :processing -> {:ok, :shipped}
+          :shipped -> {:ok, :delivered}
+          :cancelled -> {:error, :cancelled}
+        end
+      end
+
+      def check(x) do
+        unless x do
+          :no
+        else
+          :yes
+        end
+      end
+    end
+    """
+
+    setup do
+      dir = Path.join(System.tmp_dir!(), "metacredo_conf_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      File.write!(Path.join(dir, "mixed.ex"), @mixed_source)
+      on_exit(fn -> File.rm_rf(dir) end)
+      {:ok, dir: dir}
+    end
+
+    test "min_confidence: :high drops low-confidence findings", %{dir: dir} do
+      config = %{
+        name: "test",
+        no_db: false,
+        no_user: false,
+        files: %{included: [dir], excluded: []},
+        checks: %{
+          enabled: [
+            {MetaCredo.Check.Refactor.UnlessWithElse, []},
+            {MetaCredo.Check.Warning.ImperativeStatusHandling, []}
+          ],
+          disabled: []
+        }
+      }
+
+      all = Execution.run(config: config, files_included: [dir])
+      filtered = Execution.run(config: config, files_included: [dir], min_confidence: :high)
+
+      assert Enum.any?(
+               all.issues,
+               &(&1.check == MetaCredo.Check.Warning.ImperativeStatusHandling)
+             )
+
+      refute Enum.any?(
+               filtered.issues,
+               &(&1.check == MetaCredo.Check.Warning.ImperativeStatusHandling)
+             )
+
+      assert Enum.any?(filtered.issues, &(&1.check == MetaCredo.Check.Refactor.UnlessWithElse))
+    end
+
+    test "issues carry a confidence level", %{dir: dir} do
+      report = Execution.run(files_included: [dir])
+
+      assert Enum.all?(report.issues, fn issue ->
+               issue.confidence in [:high, :medium, :low]
+             end)
+    end
+  end
+
+  describe "changed_lines filtering" do
+    setup do
+      dir = Path.join(System.tmp_dir!(), "metacredo_lines_#{System.unique_integer([:positive])}")
+      File.mkdir_p!(dir)
+      path = Path.join(dir, "demo.ex")
+
+      File.write!(path, """
+      defmodule Demo do
+        def a(x) do
+          unless x do
+            :no
+          else
+            :yes
+          end
+        end
+      end
+      """)
+
+      on_exit(fn -> File.rm_rf(dir) end)
+      {:ok, dir: dir, path: path}
+    end
+
+    test "keeps only issues on changed lines", %{dir: dir, path: path} do
+      config = %{
+        name: "test",
+        no_db: false,
+        no_user: false,
+        files: %{included: [dir], excluded: []},
+        checks: %{enabled: [{MetaCredo.Check.Refactor.UnlessWithElse, []}], disabled: []}
+      }
+
+      all = Execution.run(config: config, files_included: [dir])
+      assert [issue] = all.issues
+
+      on_line =
+        Execution.run(
+          config: config,
+          files_included: [dir],
+          changed_lines: %{path => MapSet.new([issue.line_no])}
+        )
+
+      off_line =
+        Execution.run(
+          config: config,
+          files_included: [dir],
+          changed_lines: %{path => MapSet.new([999])}
+        )
+
+      assert length(on_line.issues) == 1
+      assert off_line.issues == []
+    end
+
+    test "drops issues in files absent from the diff", %{dir: dir, path: path} do
+      config = %{
+        name: "test",
+        no_db: false,
+        no_user: false,
+        files: %{included: [dir], excluded: []},
+        checks: %{enabled: [{MetaCredo.Check.Refactor.UnlessWithElse, []}], disabled: []}
+      }
+
+      report =
+        Execution.run(
+          config: config,
+          files_included: [dir],
+          changed_lines: %{Path.join(Path.dirname(path), "other.ex") => MapSet.new([1])}
+        )
+
+      assert report.issues == []
+    end
+  end
 end

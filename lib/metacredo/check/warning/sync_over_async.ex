@@ -53,6 +53,10 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
     mount handle_event handle_params handle_async
   )
 
+  # Calls that already move work off the calling process. Anything inside
+  # their lambda argument is, by definition, no longer blocking the callback.
+  @offload_indicators ~W(Task.Supervisor Task.async Task.start)
+
   @impl true
   def run(%SourceFile{} = source_file, _params) do
     {_, {issues, _}} =
@@ -63,51 +67,65 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
     issues
   end
 
-  # Track when we enter a function_def that is an async callback
+  # Track when we enter a function_def that is an async callback.
+  #
+  # The callback body is walked here, with offloaded subtrees skipped, and the
+  # node is returned unchanged so the outer `prewalk` does not descend into it
+  # a second time.
   defp traverse(
-         {:function_def, meta, _children} = node,
+         {:function_def, meta, children} = node,
          {issues, _ctx},
-         _source_file
+         source_file
        )
-       when is_list(meta) do
+       when is_list(meta) and is_list(children) do
     func_name = CheckUtils.safe_name(meta)
 
     if func_name in @async_callback_names do
-      {node, {issues, func_name}}
+      {issues, _} = walk_body(children, {issues, func_name}, source_file)
+      {node, {issues, nil}}
     else
       {node, {issues, nil}}
     end
   end
 
-  # Detect blocking calls inside an async callback context
-  defp traverse(
-         {:function_call, meta, _args} = node,
-         {issues, callback_name},
-         source_file
-       )
-       when is_list(meta) and is_binary(callback_name) do
+  defp traverse(node, acc, _source_file), do: {node, acc}
+
+  # `AST.prewalk/3` cannot prune subtrees, and offloaded work (a
+  # `Task.Supervisor` lambda) must not be descended into at all -- so the
+  # callback body is walked manually here.
+  defp walk_body(children, acc, source_file) when is_list(children) do
+    Enum.reduce(children, acc, &walk_body(&1, &2, source_file))
+  end
+
+  defp walk_body({:function_call, meta, args} = node, acc, source_file) when is_list(meta) do
+    if offload_call?(CheckUtils.safe_name(meta)) do
+      # Work handed to a supervised task is already off the calling process.
+      {node, acc}
+    else
+      {_node, acc} = traverse_call(node, acc, source_file)
+      walk_body(args, acc, source_file)
+    end
+  end
+
+  defp walk_body({_type, _meta, children}, acc, source_file) when is_list(children) do
+    walk_body(children, acc, source_file)
+  end
+
+  defp walk_body(_node, acc, _source_file), do: acc
+
+  # An offloading call: do not descend into it, its work is already async.
+  # Otherwise, report it if it blocks while we are inside a callback.
+  defp traverse_call({:function_call, meta, _args} = node, {issues, callback_name}, source_file)
+       when is_list(meta) do
     fn_name = CheckUtils.safe_name(meta)
-    fn_lower = String.downcase(fn_name)
 
-    blocking? =
-      case Keyword.get(meta, :op_kind) do
-        op_kind when is_list(op_kind) ->
-          domain = Keyword.get(op_kind, :domain)
-          domain in [:db, :http, :file, :external_api]
-
-        nil ->
-          Enum.any?(@blocking_indicators, &String.contains?(fn_lower, &1))
-      end
-
-    if blocking? do
-      line = Keyword.get(meta, :line)
-
+    if blocking_in_callback?(fn_name, callback_name, meta) do
       issue =
         format_issue(source_file,
           message:
             "Blocking '#{fn_name}' call in #{callback_name} -- offload to Task.Supervisor or start_async",
           trigger: fn_name,
-          line_no: line
+          line_no: CheckUtils.line_of(meta)
         )
 
       {node, {[issue | issues], callback_name}}
@@ -116,5 +134,37 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
     end
   end
 
-  defp traverse(node, acc, _source_file), do: {node, acc}
+  defp traverse_call(node, acc, _source_file), do: {node, acc}
+
+  # Blocking only matters inside a callback, and only for calls that are not
+  # already offloaded to a supervised task.
+  defp blocking_in_callback?(fn_name, callback_name, meta) do
+    is_binary(callback_name) and not offload_call?(fn_name) and blocking_call?(meta, fn_name)
+  end
+
+  defp offload_call?(name) when is_binary(name) do
+    Enum.any?(@offload_indicators, &String.contains?(name, &1))
+  end
+
+  defp offload_call?(_), do: false
+
+  defp blocking_call?(meta, fn_name) do
+    fn_lower = String.downcase(fn_name)
+
+    # `Map.fetch!/2` / `Map.get/2` encode field access, not blocking I/O.
+    not field_access_sentinel?(fn_lower) and
+      case Keyword.get(meta, :op_kind) do
+        op_kind when is_list(op_kind) ->
+          Keyword.get(op_kind, :domain) in [:db, :http, :file, :external_api]
+
+        nil ->
+          Enum.any?(@blocking_indicators, &String.contains?(fn_lower, &1))
+      end
+  end
+
+  # Metastatic's encoding of *field access* (`state.data`), matched against the
+  # downcased function name.
+  @field_access_sentinels ~W(map.fetch! map.get map.fetch elem get_in)
+
+  defp field_access_sentinel?(fn_lower), do: fn_lower in @field_access_sentinels
 end

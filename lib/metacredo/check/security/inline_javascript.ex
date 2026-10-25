@@ -2,6 +2,8 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
   use MetaCredo.Check,
     category: :security,
     base_priority: :high,
+    confidence: :low,
+    tags: [:security, :user_input],
     explanations: [
       check: """
       Detects inline executable code in templates/strings (XSS/injection risk).
@@ -29,6 +31,9 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
         ]
       ]
     ]
+
+  @truncate_limit 40
+  @truncate_keep 37
 
   @dangerous_patterns [
     "<script>",
@@ -59,7 +64,7 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
       content_lower = String.downcase(content)
 
       if Enum.any?(@dangerous_patterns, &String.contains?(content_lower, &1)) do
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -92,7 +97,7 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
         "html.raw",
         "javascript_tag"
       ]) ->
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -107,7 +112,7 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
          ]}
 
       has_script_in_args?(args) ->
-        line = Keyword.get(meta, :line)
+        line = CheckUtils.line_of(meta)
 
         {node,
          [
@@ -142,6 +147,8 @@ defmodule MetaCredo.Check.Security.InlineJavascript do
 
   defp has_script_in_args?(_), do: false
 
-  defp truncate(s) when byte_size(s) > 40, do: String.slice(s, 0, 37) <> "..."
+  defp truncate(s) when byte_size(s) > @truncate_limit,
+    do: String.slice(s, 0, @truncate_keep) <> "..."
+
   defp truncate(s), do: s
 end

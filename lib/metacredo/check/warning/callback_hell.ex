@@ -19,17 +19,31 @@ defmodule MetaCredo.Check.Warning.CallbackHell do
         elixir: [
           wrong: """
           # 4 levels of nesting -- the happy path is buried in indentation
-          case fetch_user(id) do
-            {:ok, user} ->
-              case fetch_org(user.org_id) do
-                {:ok, org} ->
-                  case check_quota(org) do
-                    :ok -> perform_action(user, org)
-                    {:error, r} -> {:error, r}
+          defmodule Orders do
+            def run(id) do
+              case fetch_user(id) do
+                {:ok, user} ->
+                  case fetch_org(user.org_id) do
+                    {:ok, org} ->
+                      case check_quota(org) do
+                        :ok ->
+                          case authorize(user, org) do
+                            :ok -> perform_action(user, org)
+                            {:error, r} -> {:error, r}
+                          end
+
+                        {:error, r} ->
+                          {:error, r}
+                      end
+
+                    {:error, r} ->
+                      {:error, r}
                   end
-                {:error, r} -> {:error, r}
+
+                {:error, r} ->
+                  {:error, r}
               end
-            {:error, r} -> {:error, r}
+            end
           end
           """,
           correct: """
@@ -56,6 +70,8 @@ defmodule MetaCredo.Check.Warning.CallbackHell do
     issues
   end
 
+  # `case` is emitted as `:pattern_match`; `if`/`cond` as `:conditional`.
+  # Both are nesting constructs, so both are counted.
   defp traverse(
          {:conditional, meta, _children} = node,
          issues,
@@ -63,17 +79,31 @@ defmodule MetaCredo.Check.Warning.CallbackHell do
          max_nesting
        )
        when is_list(meta) do
+    report_nesting(node, meta, issues, source_file, max_nesting)
+  end
+
+  defp traverse(
+         {:pattern_match, meta, _children} = node,
+         issues,
+         source_file,
+         max_nesting
+       )
+       when is_list(meta) do
+    report_nesting(node, meta, issues, source_file, max_nesting)
+  end
+
+  defp traverse(node, issues, _source_file, _max_nesting), do: {node, issues}
+
+  defp report_nesting(node, meta, issues, source_file, max_nesting) do
     depth = count_conditional_nesting(node)
 
     if depth > max_nesting do
-      line = Keyword.get(meta, :line)
-
       issue =
         format_issue(source_file,
           message:
             "#{depth} levels of nested conditionals (max #{max_nesting}) -- refactor with `with`, early returns, or extract functions",
           trigger: "case",
-          line_no: line
+          line_no: CheckUtils.line_of(meta)
         )
 
       {node, [issue | issues]}
@@ -81,8 +111,6 @@ defmodule MetaCredo.Check.Warning.CallbackHell do
       {node, issues}
     end
   end
-
-  defp traverse(node, issues, _source_file, _max_nesting), do: {node, issues}
 
   # Count nesting depth of conditionals
   defp count_conditional_nesting({:conditional, _meta, [_cond, then_branch, else_branch]}) do
@@ -101,6 +129,14 @@ defmodule MetaCredo.Check.Warning.CallbackHell do
     1 + branch_depth
   end
 
+  defp count_conditional_nesting({:pattern_match, _meta, [_scrutinee | arms]}) do
+    arms
+    |> List.flatten()
+    |> Enum.map(&count_nested_conditionals/1)
+    |> Enum.max(fn -> 0 end)
+    |> Kernel.+(1)
+  end
+
   defp count_conditional_nesting(_), do: 0
 
   defp count_nested_conditionals({:block, _meta, statements}) when is_list(statements) do
@@ -110,6 +146,10 @@ defmodule MetaCredo.Check.Warning.CallbackHell do
   end
 
   defp count_nested_conditionals({:conditional, _meta, _children} = node) do
+    count_conditional_nesting(node)
+  end
+
+  defp count_nested_conditionals({:pattern_match, _meta, _children} = node) do
     count_conditional_nesting(node)
   end
 

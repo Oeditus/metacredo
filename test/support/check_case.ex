@@ -262,4 +262,52 @@ defmodule MetaCredo.CheckCase do
        {:string_interpolation, [], parts}
      ]}
   end
+
+  # -- Conformance testing --
+
+  @doc """
+  Builds a `SourceFile` by actually parsing `source` as `language`.
+
+  Unlike `source_file_from_ast/2`, this exercises the real Metastatic
+  adapter, so it validates that a check works on genuinely parsed code
+  rather than on hand-built fixtures.
+  """
+  @spec source_file_from_source(String.t(), atom(), String.t()) ::
+          {:ok, SourceFile.t()} | {:error, term()}
+  def source_file_from_source(source, language, filename) do
+    SourceFile.parse(source, filename, language)
+  end
+
+  @doc """
+  Runs `check_module` against one of its own documented examples.
+
+  Returns `{:ok, issues}`, or `{:skip, reason}` when the example cannot be
+  parsed by the adapter (e.g. a pseudo-code snippet that is not valid source).
+  """
+  @spec run_example(module(), String.t(), atom(), keyword()) ::
+          {:ok, [Issue.t()]} | {:skip, term()}
+  def run_example(check_module, source, language, params \\ []) do
+    filename = "example.#{extension_for(language)}"
+
+    case source_file_from_source(source, language, filename) do
+      {:ok, source_file} ->
+        {:ok, check_module.run(source_file, params)}
+
+      {:error, reason} ->
+        {:skip, reason}
+    end
+  end
+
+  @doc "Returns the canonical file extension for a language atom."
+  @spec extension_for(atom()) :: String.t()
+  def extension_for(:elixir), do: "ex"
+  def extension_for(:erlang), do: "erl"
+  def extension_for(:python), do: "py"
+  def extension_for(:ruby), do: "rb"
+  def extension_for(:haskell), do: "hs"
+  def extension_for(:javascript), do: "js"
+  def extension_for(:typescript), do: "ts"
+  def extension_for(:cure), do: "cure"
+  def extension_for(:march), do: "march"
+  def extension_for(_), do: "ex"
 end

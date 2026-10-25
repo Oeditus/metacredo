@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.BoolOperationOnSameValues do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects boolean operations where both operands are structurally identical,
@@ -53,7 +54,7 @@ defmodule MetaCredo.Check.Warning.BoolOperationOnSameValues do
 
     if category == :boolean and operator in @boolean_operators and
          structurally_equal?(left, right) do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,

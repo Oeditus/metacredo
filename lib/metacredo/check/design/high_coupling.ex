@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Design.HighCoupling do
   use MetaCredo.Check,
     category: :design,
     base_priority: :high,
+    confidence: :low,
     param_defaults: [max_dependencies: 10],
     explanations: [
       check: """
@@ -23,10 +24,22 @@ defmodule MetaCredo.Check.Design.HighCoupling do
           wrong: """
           # One module touching 12 external concerns -- changes ripple everywhere
           defmodule OrderPipeline do
-            alias Repo, Mailer, Stripe, Slack, S3, Pdf, Metrics,
-                  Logger, Cache, Queue, Sms, Analytics
+            alias Orders.Repo
+            alias Orders.Mailer
+            alias Orders.Stripe
+            alias Orders.Slack
+            alias Orders.S3
+            alias Orders.Pdf
+            alias Orders.Metrics
+            alias Orders.Cache
+            alias Orders.Queue
+            alias Orders.Sms
+            alias Orders.Analytics
+            alias Orders.Audit
 
-            def run(order), do: ...
+            def run(order) do
+              :ok
+            end
           end
           """,
           correct: """
@@ -66,11 +79,18 @@ defmodule MetaCredo.Check.Design.HighCoupling do
   defp traverse({:container, meta, children} = node, issues, source_file, max_deps)
        when is_list(meta) and is_list(children) do
     name = Keyword.get(meta, :name, "anonymous")
-    deps = extract_dependencies(children) |> Enum.uniq() |> Enum.sort()
+
+    deps =
+      children
+      |> extract_dependencies()
+      |> Enum.reject(&language_builtin?/1)
+      |> Enum.uniq()
+      |> Enum.sort()
+
     dep_count = length(deps)
 
     if dep_count > max_deps do
-      line = Keyword.get(meta, :line)
+      line = CheckUtils.line_of(meta)
 
       issue =
         format_issue(source_file,
@@ -89,6 +109,30 @@ defmodule MetaCredo.Check.Design.HighCoupling do
 
   defp traverse(node, issues, _sf, _max), do: {node, issues}
 
+  # Language built-ins are not *external* dependencies: coupling to `Enum`,
+  # `String`, `File`, or `Elixir` says nothing about how hard a module is to
+  # test or change. Counting them inflated every module's score and made the
+  # check fire on almost anything of moderate size.
+  @builtin_modules ~W[
+    Elixir Kernel Enum String File Path System Map MapSet Keyword List Tuple
+    Integer Float Atom Bitwise Base Regex Range Stream Access Module Code Macro
+    Process Agent GenServer Supervisor Task Registry Application Logger Mix
+    IO Inspect Protocol Date Time DateTime NaiveDateTime Calendar URI
+  ]
+
+  defp language_builtin?(module), do: module in @builtin_modules
+
+  # `Map.fetch!/2` and friends are Metastatic's encoding of *field access*,
+  # not a dependency on the `Map` module.
+  @field_access_sentinels ~W(Map.fetch! Map.fetch Map.get elem get_in)
+
+  defp field_access_sentinel?(name), do: name in @field_access_sentinels
+
+  # A dependency must look like a module: PascalCase, or dotted.
+  defp module_name?(name) when is_binary(name) do
+    String.match?(name, ~r/^[A-Z]/) or String.match?(name, ~r/^[a-z_]+\.[A-Z]/)
+  end
+
   defp extract_dependencies(children) when is_list(children) do
     Enum.flat_map(children, &extract_deps_from_node/1)
   end
@@ -99,17 +143,29 @@ defmodule MetaCredo.Check.Design.HighCoupling do
     [module]
   end
 
+  # `alias`/`import`/`require` of an external module.
+  defp extract_deps_from_node({:import, meta, _children}) when is_list(meta) do
+    case Keyword.get(meta, :source) do
+      source when is_binary(source) -> Enum.filter([source], &module_name?/1)
+      _ -> []
+    end
+  end
+
   # Qualified function call (e.g. "Math.sqrt")
   defp extract_deps_from_node({:function_call, meta, args})
        when is_list(meta) and is_list(args) do
     name = Keyword.get(meta, :name, "")
 
     deps =
-      if is_binary(name) and String.contains?(name, ".") do
+      if is_binary(name) and String.contains?(name, ".") and not field_access_sentinel?(name) do
         [name |> String.split(".") |> hd()]
       else
         []
       end
+
+    # Only module-shaped names (PascalCase or dotted) count as dependencies;
+    # a bare `function_call` key from a generic node must not leak through.
+    deps = Enum.filter(deps, &module_name?/1)
 
     deps ++ Enum.flat_map(args, &extract_deps_from_node/1)
   end

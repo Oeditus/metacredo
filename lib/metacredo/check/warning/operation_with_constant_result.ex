@@ -2,6 +2,7 @@ defmodule MetaCredo.Check.Warning.OperationWithConstantResult do
   use MetaCredo.Check,
     category: :warning,
     base_priority: :normal,
+    confidence: :high,
     explanations: [
       check: """
       Detects arithmetic operations with a constant result or identity
@@ -42,47 +43,33 @@ defmodule MetaCredo.Check.Warning.OperationWithConstantResult do
        )
        when is_list(meta) do
     operator = Keyword.get(meta, :operator)
-    new_issues = check_constant(operator, left, right, meta, issues, source_file)
+    new_issues = check_constant(operator, {left, right}, meta, issues, source_file)
     {node, new_issues}
   end
 
   defp traverse(node, issues, _source_file), do: {node, issues}
 
-  defp check_constant(:*, left, right, meta, issues, source_file) do
-    if literal_zero?(left) or literal_zero?(right) do
-      line = Keyword.get(meta, :line)
+  # Operator => message for constant-result patterns where the operand is 0.
+  @zero_operand_messages %{
+    :* => "Multiplication by 0 -- result is always 0",
+    :+ => "Addition of 0 -- expression is a no-op identity"
+  }
 
+  defp check_constant(operator, {left, right}, meta, issues, source_file) do
+    with {:ok, message} <- Map.fetch(@zero_operand_messages, operator),
+         true <- literal_zero?(left) or literal_zero?(right) do
       [
         format_issue(source_file,
-          message: "Multiplication by 0 -- result is always 0",
-          trigger: "*",
-          line_no: line
+          message: message,
+          trigger: to_string(operator),
+          line_no: CheckUtils.line_of(meta)
         )
         | issues
       ]
     else
-      issues
+      _ -> issues
     end
   end
-
-  defp check_constant(:+, left, right, meta, issues, source_file) do
-    if literal_zero?(left) or literal_zero?(right) do
-      line = Keyword.get(meta, :line)
-
-      [
-        format_issue(source_file,
-          message: "Addition of 0 -- expression is a no-op identity",
-          trigger: "+",
-          line_no: line
-        )
-        | issues
-      ]
-    else
-      issues
-    end
-  end
-
-  defp check_constant(_op, _left, _right, _meta, issues, _source_file), do: issues
 
   defp literal_zero?({:literal, meta, 0}) when is_list(meta), do: true
   defp literal_zero?({:literal, meta, "0"}) when is_list(meta), do: true
