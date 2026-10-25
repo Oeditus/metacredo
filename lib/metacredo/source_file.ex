@@ -7,6 +7,7 @@ defmodule MetaCredo.SourceFile do
   """
 
   alias Metastatic.Document
+  alias Metastatic.Semantic.{Callbacks, Domains, Patterns}
 
   @type t :: %__MODULE__{
           document: Document.t(),
@@ -27,6 +28,33 @@ defmodule MetaCredo.SourceFile do
     status: :valid
   ]
 
+  @domains [
+    Domains.Auth,
+    Domains.Cache,
+    Domains.Database,
+    Domains.ExternalApi,
+    Domains.File,
+    Domains.Http,
+    Domains.Queue
+  ]
+
+  @doc false
+  def ensure_semantic_domains_registered do
+    if Code.ensure_loaded?(Patterns) and Patterns.get_patterns(:file, :elixir) == [] do
+      for mod <- @domains do
+        if Code.ensure_loaded?(mod) and function_exported?(mod, :register_all, 0) do
+          mod.register_all()
+        end
+      end
+    end
+
+    if Code.ensure_loaded?(Callbacks) and function_exported?(Callbacks, :register_builtins, 0) do
+      Callbacks.register_builtins()
+    end
+
+    :ok
+  end
+
   @doc """
   Parses source code into a `SourceFile`.
 
@@ -35,6 +63,7 @@ defmodule MetaCredo.SourceFile do
   """
   @spec parse(String.t(), String.t(), atom()) :: {:ok, t()} | {:error, term()}
   def parse(source, filename, language) do
+    ensure_semantic_domains_registered()
     source = ensure_utf8(source)
 
     case Metastatic.Builder.from_source(source, language) do

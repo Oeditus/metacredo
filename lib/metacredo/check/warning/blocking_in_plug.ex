@@ -102,23 +102,7 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
     fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
 
-    blocking? =
-      case Keyword.get(meta, :op_kind) do
-        op_kind when is_list(op_kind) ->
-          domain = Keyword.get(op_kind, :domain)
-          domain in [:db, :http, :file, :external_api]
-
-        nil ->
-          known_blocking_api?(fn_name)
-      end
-
-    # `Map.fetch!/2` / `Map.get/2` are Metastatic's encoding of *field access*
-    # (`conn.assigns`), not blocking I/O. The adapter may attach an `op_kind`
-    # to them, so the sentinel check has to run regardless of which branch
-    # above decided `blocking?`.
-    blocking? = blocking? and not field_access_sentinel?(fn_lower)
-
-    if blocking? do
+    if blocking_call?(meta, fn_name, fn_lower) do
       line = CheckUtils.line_of(meta)
 
       issue =
@@ -137,13 +121,43 @@ defmodule MetaCredo.Check.Warning.BlockingInPlug do
 
   defp traverse(node, acc, _source_file), do: {node, acc}
 
-  defp known_blocking_api?(fn_name) do
-    # Match complete module/function names, not substrings such as "get" in
-    # an arbitrary application getter. Repo is conventionally app-namespaced.
+  defp blocking_call?(meta, fn_name, fn_lower) do
+    domain =
+      case Keyword.get(meta, :op_kind) do
+        op_kind when is_list(op_kind) -> Keyword.get(op_kind, :domain)
+        _ -> nil
+      end
+
+    cond do
+      field_access_sentinel?(fn_lower) ->
+        false
+
+      domain == :cache ->
+        false
+
+      known_api?(fn_name) ->
+        known_blocking_api?(fn_name)
+
+      true ->
+        domain in [:db, :http, :file, :external_api]
+    end
+  end
+
+  defp parse_call(fn_name) do
     parts = fn_name |> String.trim_leading(":") |> String.split(".")
     function = parts |> List.last() |> String.trim_trailing("!")
     module_parts = Enum.drop(parts, -1)
     module = Enum.join(module_parts, ".")
+    {module, module_parts, function}
+  end
+
+  defp known_api?(fn_name) do
+    {module, module_parts, _function} = parse_call(fn_name)
+    List.last(module_parts) == "Repo" or Map.has_key?(@blocking_apis, module)
+  end
+
+  defp known_blocking_api?(fn_name) do
+    {module, module_parts, function} = parse_call(fn_name)
 
     operations =
       if List.last(module_parts) == "Repo" do
