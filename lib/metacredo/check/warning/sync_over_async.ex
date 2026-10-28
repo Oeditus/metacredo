@@ -40,14 +40,6 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
       ]
     ]
 
-  @blocking_indicators ~W(
-    get post put delete patch request
-    fetch download upload
-    read write open
-    query execute transaction
-    sleep wait
-  )
-
   @async_callback_names ~W(
     handle_call handle_cast handle_info handle_continue
     mount handle_event handle_params handle_async
@@ -55,7 +47,12 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
 
   # Calls that already move work off the calling process. Anything inside
   # their lambda argument is, by definition, no longer blocking the callback.
-  @offload_indicators ~W(Task.Supervisor Task.async Task.start)
+  @offload_calls ~W(
+    Task.async Task.start Task.start_link Task.async_stream Task.async_stream_nolink
+    Task.Supervisor.async Task.Supervisor.async_nolink Task.Supervisor.start_child
+    Task.Supervisor.async_stream Task.Supervisor.async_stream_nolink
+    Phoenix.LiveView.start_async start_async
+  )
 
   @impl true
   def run(%SourceFile{} = source_file, _params) do
@@ -99,8 +96,12 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
 
   defp walk_body({:function_call, meta, args} = node, acc, source_file) when is_list(meta) do
     if offload_call?(CheckUtils.safe_name(meta)) do
-      # Work handed to a supervised task is already off the calling process.
-      {node, acc}
+      # Lambda bodies run elsewhere; other arguments are still evaluated
+      # synchronously before the task can be started.
+      Enum.reduce(args, acc, fn
+        {:lambda, _, _}, inner -> inner
+        argument, inner -> walk_body(argument, inner, source_file)
+      end)
     else
       {_node, acc} = traverse_call(node, acc, source_file)
       walk_body(args, acc, source_file)
@@ -143,21 +144,11 @@ defmodule MetaCredo.Check.Warning.SyncOverAsync do
   end
 
   defp offload_call?(name) when is_binary(name) do
-    Enum.any?(@offload_indicators, &String.contains?(name, &1))
+    String.replace_prefix(name, "Elixir.", "") in @offload_calls
   end
 
   defp blocking_call?(meta, fn_name) do
-    fn_lower = String.downcase(fn_name)
-
-    # `Map.fetch!/2` / `Map.get/2` encode field access, not blocking I/O.
-    not field_access_sentinel?(fn_lower) and
-      case Keyword.get(meta, :op_kind) do
-        op_kind when is_list(op_kind) ->
-          Keyword.get(op_kind, :domain) in [:db, :http, :file, :external_api]
-
-        nil ->
-          Enum.any?(@blocking_indicators, &String.contains?(fn_lower, &1))
-      end
+    not field_access_sentinel?(String.downcase(fn_name)) and CheckUtils.blocking_call?(meta)
   end
 
   # Metastatic's encoding of *field access* (`state.data`), matched against the

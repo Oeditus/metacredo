@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### CI classifier boundaries
+- `Warning.SyncOverAsync` now uses semantic operation metadata and exact known I/O operations instead of name substrings. Logging, pure standard-library helpers, and query builders are not blocking calls; eagerly evaluated task arguments and actual waits remain checked.
+- `Warning.ImperativeStatusHandling` no longer recommends FSMs from lifecycle names or predicates alone. Actual status assignments, map updates, and multi-state branches remain detectable.
+- `Warning.MissingThrottle` requires request-boundary evidence rather than CRUD names alone. Module and function limiter scopes are isolated, ordinary request data cannot impersonate a limiter, and pure query construction is distinguished from execution.
+- Added parsed-source and synthetic-AST regression coverage for false positives and genuine violations.
+
 ### New Features
 
 - **`--baseline` / `--write-baseline`** — record the issues that already exist, then report only *new* ones. This is the practical way to adopt MetaCredo on a codebase that is not clean today: capture once, commit the file, and let CI fail only on regressions. Issues match on `{check, filename, line_no, message}`; a missing or malformed baseline is treated as empty so a stale path never silently hides findings. New module: `MetaCredo.Baseline`.

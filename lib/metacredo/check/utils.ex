@@ -21,6 +21,34 @@ defmodule MetaCredo.Check.Utils do
     Elixir.Access Elixir.Kernel
   ]
 
+  @pure_operation_modules ~W(
+    Map MapSet Keyword Enum List Tuple String Integer Float Atom Kernel
+    Logger Path Base Regex Date Time DateTime NaiveDateTime Calendar URI
+    Ecto.Query Dllb.Query
+  )
+
+  @blocking_modules %{
+    "File" => ~W(read write open close stat lstat ls mkdir mkdir_p rm rm_rf cp cp_r copy rename),
+    "IO" => ~W(read binread write binwrite puts gets inspect),
+    ":file" => ~W(read_file write_file open close read write list_dir),
+    "System" => ~W(cmd shell),
+    "Process" => ~W(sleep),
+    "GenServer" => ~W(call stop),
+    "Task" => ~W(await await_many yield yield_many shutdown),
+    "Dllb" => ~W(query batch batch_transaction),
+    "Req" => ~W(get post put patch delete head request run),
+    "HTTPoison" => ~W(get post put patch delete head request),
+    "HTTPotion" => ~W(get post put patch delete head request),
+    "Tesla" => ~W(get post put patch delete head request),
+    "Finch" => ~W(request stream),
+    ":httpc" => ~W(request)
+  }
+
+  @repo_operations ~W(
+    all one get get_by insert insert_all update update_all delete delete_all
+    preload query transaction checkout
+  )
+
   # Bare function names that are stdlib and should never be flagged
   @safe_bare_functions ~W[
     is_nil is_binary is_list is_map is_atom is_integer is_float
@@ -120,6 +148,44 @@ defmodule MetaCredo.Check.Utils do
 
   def safe_stdlib_call?(_), do: false
 
+  @doc "Splits a qualified call into its module and terminal function name."
+  @spec call_parts(String.t()) :: {String.t(), String.t()}
+  def call_parts(name) do
+    parts = name |> String.replace_prefix("Elixir.", "") |> String.split(".")
+    {parts |> Enum.drop(-1) |> Enum.join("."), List.last(parts)}
+  end
+
+  @doc "Recognizes pure operations, including known query builders, rather than query execution."
+  @spec pure_operation?(String.t()) :: boolean()
+  def pure_operation?(name) do
+    {module, _function} = call_parts(name)
+    module in @pure_operation_modules
+  end
+
+  @doc """
+  Identifies synchronous I/O from semantic metadata or known module operations.
+
+  Unknown helper names are not evidence of blocking. Pure standard operations
+  and query builders remain pure even when an adapter attaches broad metadata.
+  """
+  @spec blocking_call?(keyword()) :: boolean()
+  def blocking_call?(meta) do
+    name = safe_name(meta)
+
+    if pure_operation?(name) do
+      false
+    else
+      case Keyword.get(meta, :op_kind) do
+        kind when is_list(kind) ->
+          Keyword.get(kind, :domain) in [:db, :http, :file, :external_api] and
+            Keyword.get(kind, :async, false) != true
+
+        _ ->
+          known_blocking_call?(name)
+      end
+    end
+  end
+
   @doc """
   Returns true if a variable name represents a module attribute
   (starts with `@`), which should be excluded from snake_case checks
@@ -214,4 +280,14 @@ defmodule MetaCredo.Check.Utils do
   """
   @spec doc_string?(doc_strings(), String.t()) :: boolean()
   def doc_string?(doc_strings, value), do: is_map_key(doc_strings, value)
+
+  defp known_blocking_call?(name) do
+    {module, function} = call_parts(name)
+    operation = String.trim_trailing(function, "!")
+    operations = Map.get(@blocking_modules, module, [])
+    repo? = module == "Repo" or String.ends_with?(module, ".Repo")
+
+    function in operations or operation in operations or
+      (repo? and operation in @repo_operations)
+  end
 end

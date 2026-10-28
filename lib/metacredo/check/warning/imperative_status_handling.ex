@@ -15,8 +15,8 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
       replaced with a finite state machine (`Finitomata`, `gen_statem`, or
       equivalent).
 
-      Also flags direct assignments to status fields and functions whose
-      names encode state-transition verbs (e.g. `activate`, `suspend`).
+      Also flags direct assignments and record updates to status fields.
+      Lifecycle function names alone are not evidence of an ad-hoc FSM.
       """,
       params: [
         status_field_names: "Field/variable names to watch (default: [\"status\", \"state\"])",
@@ -51,14 +51,6 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
         ]
       ]
     ]
-
-  @default_transition_verbs ~W(
-    activate deactivate publish unpublish archive unarchive
-    suspend resume complete cancel approve reject
-    enable disable start stop pause draft
-    submit finalize close reopen expire revoke
-    block unblock lock unlock freeze thaw
-  )
 
   # Threaded check configuration, so the branching helper stays below the
   # parameter-count limit.
@@ -110,13 +102,13 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
 
   # Tier 2: Assignment to status field
   defp traverse(
-         {:assignment, meta, [target, value]} = node,
+         {kind, meta, [target, value]} = node,
          issues,
          source_file,
          status_fields,
          _min_states
        )
-       when is_list(meta) do
+       when kind in [:assignment, :inline_match] and is_list(meta) do
     if assigns_to_status_field?(target, status_fields) do
       state_value = extract_literal_value(value)
 
@@ -140,32 +132,28 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
     end
   end
 
-  # Tier 3: Transition-verb function names
+  # Parsed Elixir map updates encode record writes as Map.put/Map.merge.
   defp traverse(
-         {:function_def, meta, _children} = node,
+         {:function_call, meta, _children} = node,
          issues,
          source_file,
-         _status_fields,
+         status_fields,
          _min_states
        )
        when is_list(meta) do
-    func_name = extract_function_name(meta)
-
-    if func_name && matches_transition_verb?(func_name) do
-      line = CheckUtils.line_of(meta)
-
-      issue =
+    found =
+      for {field, value} <- status_writes(node),
+          to_string(field) in status_fields,
+          is_atom(value) or is_binary(value) do
         format_issue(source_file,
           message:
-            "Function `#{func_name}` looks like a state transition -- consider modeling as an FSM event",
-          trigger: func_name,
-          line_no: line
+            "Imperative status assignment to #{inspect(value)} -- FSM transitions should manage state changes",
+          trigger: "#{field} =",
+          line_no: CheckUtils.line_of(meta)
         )
+      end
 
-      {node, [issue | issues]}
-    else
-      {node, issues}
-    end
+    {node, found ++ issues}
   end
 
   defp traverse(node, issues, _source_file, _status_fields, _min_states), do: {node, issues}
@@ -252,25 +240,32 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
 
   defp extract_literal_value(_), do: nil
 
-  defp extract_function_name(meta) when is_list(meta) do
-    name = Keyword.get(meta, :name) || Keyword.get(meta, :function)
+  defp status_writes(
+         {:function_call, meta, [_record, {:literal, _, field}, {:literal, _, value}]}
+       ) do
+    if CheckUtils.safe_name(meta) in ~W(Map.put Map.replace),
+      do: [{field, value}],
+      else: []
+  end
 
-    cond do
-      is_binary(name) -> name
-      is_atom(name) -> Atom.to_string(name)
-      true -> nil
+  defp status_writes({:function_call, meta, [_record, changes]}) do
+    if CheckUtils.safe_name(meta) == "Map.merge", do: map_pairs(changes), else: []
+  end
+
+  defp status_writes(_node), do: []
+
+  defp map_pairs({:function_call, meta, [{:list, _, pairs}]}) do
+    if CheckUtils.safe_name(meta) == "Map.new" do
+      Enum.flat_map(pairs, fn
+        {:tuple, _, [{:literal, _, field}, {:literal, _, value}]} -> [{field, value}]
+        _ -> []
+      end)
+    else
+      []
     end
   end
 
-  defp matches_transition_verb?(func_name) do
-    normalized = func_name |> to_string() |> String.downcase()
-
-    Enum.any?(@default_transition_verbs, fn verb ->
-      String.contains?(normalized, verb) or
-        String.starts_with?(normalized, verb <> "_") or
-        String.ends_with?(normalized, "_" <> verb)
-    end)
-  end
+  defp map_pairs(_node), do: []
 
   defp format_states(states) do
     states
