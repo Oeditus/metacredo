@@ -88,15 +88,9 @@ defmodule MetaCredo.Check.Refactor.DeadCode do
   end
 
   # Statements that terminate control flow for the remainder of the block.
-  @terminators ~W(raise reraise throw exit return)
-
-  defp early_return?({:early_return, _meta, _children}), do: true
-
-  defp early_return?({:function_call, meta, _args}) when is_list(meta) do
-    CheckUtils.safe_name(meta) in @terminators
-  end
-
-  defp early_return?(_), do: false
+  # The list lives in `CheckUtils.terminator?/1` so this check and
+  # `MetaCredo.Analysis.DeadCode` cannot drift apart.
+  defp early_return?(stmt), do: CheckUtils.terminator?(stmt)
 
   defp extract_line({_type, meta, _children}) when is_list(meta),
     do: CheckUtils.line_of(meta)

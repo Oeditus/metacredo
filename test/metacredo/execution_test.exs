@@ -395,4 +395,27 @@ defmodule MetaCredo.ExecutionTest do
       assert report.issues == []
     end
   end
+
+  describe "suggest mode" do
+    test "adds the default-disabled checks to the run" do
+      # Without `--suggest`, the curated default-disabled checks are absent.
+      plain = Execution.run(files_included: [])
+
+      suggested = Execution.run(files_included: [], suggest: true)
+
+      disabled = MetaCredo.Config.default_disabled_checks()
+
+      refute Enum.any?(disabled, &(&1 in plain.checks_run)),
+             "a default-disabled check ran without --suggest"
+
+      assert Enum.all?(disabled, &(&1 in suggested.checks_run)),
+             "--suggest did not enable every default-disabled check"
+    end
+
+    test "does not duplicate a check that is already enabled" do
+      suggested = Execution.run(files_included: [], suggest: true)
+
+      assert suggested.checks_run == Enum.uniq(suggested.checks_run)
+    end
+  end
 end

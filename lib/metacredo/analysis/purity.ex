@@ -20,6 +20,7 @@ defmodule MetaCredo.Analysis.Purity do
   """
 
   alias MetaCredo.Analysis.Purity.{Effects, Result}
+  alias MetaCredo.Check.Utils, as: CheckUtils
   alias Metastatic.Document
 
   use MetaCredo.Analysis.Analyzer,
@@ -95,8 +96,12 @@ defmodule MetaCredo.Analysis.Purity do
   defp walk_node({:function_call, meta, args}, ctx) when is_list(meta) and is_list(args) do
     name = Keyword.get(meta, :name)
 
+    # A call with no detected effect is only "unknown" when it is not a
+    # known-pure stdlib operation. Without this guard every `Map.get/2` or
+    # `String.trim/1` downgraded the whole function to `pure?: false`.
     ctx =
-      if Effects.detect({:function_call, meta, args}) == [] and is_binary(name) do
+      if Effects.detect({:function_call, meta, args}) == [] and is_binary(name) and
+           not pure_call?(name) do
         %{ctx | unknown: [name | ctx.unknown]}
       else
         ctx
@@ -159,4 +164,10 @@ defmodule MetaCredo.Analysis.Purity do
     do: Result.unknown(Enum.uniq(unknown))
 
   defp build_result(%{effects: effects, locations: _}), do: Result.impure(Enum.uniq(effects), [])
+
+  # A call that is a known-pure stdlib/query-builder operation is neither an
+  # effect nor "unknown": it cannot make the enclosing function impure.
+  defp pure_call?(name) do
+    CheckUtils.safe_stdlib_call?(name) or CheckUtils.pure_operation?(name)
+  end
 end

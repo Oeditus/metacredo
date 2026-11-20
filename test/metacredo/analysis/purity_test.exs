@@ -39,4 +39,43 @@ defmodule MetaCredo.Analysis.PurityTest do
       assert result.pure?
     end
   end
+
+  describe "effect classification (regression: bare local calls)" do
+    # A bare local call like `timeout(5000)` or `update_counters/2` is an
+    # ordinary project function. Prefix-matching its *name* used to classify it
+    # as a `:time` / `:database` effect, reporting pure code as impure.
+    test "bare local calls are not given a spurious effect" do
+      for name <- ~w(timeout read_config update_counters random_bytes fetch_data) do
+        ast = {:function_call, [name: name], []}
+
+        assert {:ok, result} = Purity.analyze(Document.new(ast, :elixir))
+        assert result.effects == [], "#{name}/0 was given effects #{inspect(result.effects)}"
+      end
+    end
+
+    test "qualified calls are still classified" do
+      for {name, effect} <- [
+            {"File.read!", :io},
+            {"IO.puts", :io},
+            {":rand.uniform", :random},
+            {"Repo.insert", :database},
+            {"HTTPoison.get", :network}
+          ] do
+        ast = {:function_call, [name: name], []}
+
+        assert {:ok, result} = Purity.analyze(Document.new(ast, :elixir))
+        assert effect in result.effects, "#{name} was not classified as #{effect}"
+      end
+    end
+
+    test "known-pure stdlib calls do not downgrade a function to unknown" do
+      for name <- ~w(Map.get String.trim Enum.map) do
+        ast = {:function_call, [name: name], []}
+
+        assert {:ok, result} = Purity.analyze(Document.new(ast, :elixir))
+        assert result.pure?, "#{name} should not make the function impure"
+        assert result.effects == []
+      end
+    end
+  end
 end

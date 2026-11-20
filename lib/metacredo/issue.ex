@@ -92,11 +92,31 @@ defmodule MetaCredo.Issue do
   @spec confidence_value(confidence()) :: 1..3
   def confidence_value(confidence), do: Map.get(@confidence_values, confidence, 2)
 
-  @doc "Parses a confidence level from a string or atom, or returns `nil`."
+  @doc """
+  Parses a confidence level from a string or atom, or returns `nil`.
+
+  Matching is case-insensitive, so `"HIGH"` and `"high"` are equivalent.
+  """
   @spec parse_confidence(String.t() | atom() | nil) :: confidence() | nil
   def parse_confidence(level) when level in [:high, :medium, :low], do: level
-  def parse_confidence("high"), do: :high
-  def parse_confidence("medium"), do: :medium
-  def parse_confidence("low"), do: :low
+
+  def parse_confidence(level) when is_atom(level) and not is_nil(level),
+    do: parse_confidence(Atom.to_string(level))
+
+  def parse_confidence(level) when is_binary(level) do
+    case level |> String.trim() |> String.downcase() do
+      "high" -> :high
+      "medium" -> :medium
+      "low" -> :low
+      _ -> nil
+    end
+  end
+
   def parse_confidence(_), do: nil
+
+  @doc """
+  Returns the list of accepted confidence level names, for error messages.
+  """
+  @spec confidence_levels() :: [String.t()]
+  def confidence_levels, do: ~w(high medium low)
 end

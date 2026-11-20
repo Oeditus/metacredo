@@ -99,7 +99,7 @@ jobs:
           TOTAL=$(jq -r '.coverage.total' cover/excoveralls.json)
           echo "Total coverage: ${TOTAL}%"
           # Floor is set just below the current value so it can only ratchet up.
-          FLOOR=51
+          FLOOR=54
           if (( $(echo "$TOTAL < $FLOOR" | bc -l) )); then
             echo "::error::Coverage ${TOTAL}% is below the ${FLOOR}% floor"
             exit 1

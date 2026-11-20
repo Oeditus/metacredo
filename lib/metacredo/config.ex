@@ -190,16 +190,11 @@ defmodule MetaCredo.Config do
 
   @doc "Returns the list of enabled checks from config."
   @spec enabled_checks(config()) :: [{module(), Keyword.t()}]
-  def enabled_checks(%{checks: %{enabled: :all, disabled: disabled}}) do
+  def enabled_checks(%{checks: %{enabled: :all} = checks}) do
+    # A config that omits `:disabled` falls back to the curated default list.
+    # Collapsing this into one clause keeps the two `:all` paths from drifting.
+    disabled = Map.get(checks, :disabled, default_disabled_checks())
     disabled_modules = Enum.map(disabled, fn {mod, _} -> mod end)
-
-    all_checks()
-    |> Enum.map(fn mod -> {mod, []} end)
-    |> Enum.reject(fn {mod, _} -> mod in disabled_modules end)
-  end
-
-  def enabled_checks(%{checks: %{enabled: :all}}) do
-    disabled_modules = default_disabled_checks()
 
     all_checks()
     |> Enum.map(fn mod -> {mod, []} end)

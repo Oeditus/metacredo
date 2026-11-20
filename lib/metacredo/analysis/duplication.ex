@@ -223,68 +223,11 @@ defmodule MetaCredo.Analysis.Duplication do
 
   defp count_nodes(ast), do: walk_and_count(ast, 0)
 
-  defp walk_and_count({:binary_op, _, _, left, right}, count) do
-    count = walk_and_count(left, count + 1)
-    walk_and_count(right, count)
-  end
-
-  defp walk_and_count({:unary_op, _, _, operand}, count),
-    do: walk_and_count(operand, count + 1)
-
-  defp walk_and_count({:function_call, _, args}, count) when is_list(args),
-    do: Enum.reduce(args, count + 1, fn arg, c -> walk_and_count(arg, c) end)
-
-  defp walk_and_count({:conditional, cond, then_br, else_br}, count) do
-    count = walk_and_count(cond, count + 1)
-    count = walk_and_count(then_br, count)
-    if else_br, do: walk_and_count(else_br, count), else: count
-  end
-
-  defp walk_and_count({:block, stmts}, count) when is_list(stmts),
-    do: Enum.reduce(stmts, count + 1, fn stmt, c -> walk_and_count(stmt, c) end)
-
-  defp walk_and_count({:loop, :while, cond, body}, count) do
-    count = walk_and_count(cond, count + 1)
-    walk_and_count(body, count)
-  end
-
-  defp walk_and_count({:loop, _, iter, coll, body}, count) do
-    count = walk_and_count(iter, count + 1)
-    count = walk_and_count(coll, count)
-    walk_and_count(body, count)
-  end
-
-  defp walk_and_count({:assignment, target, value}, count) do
-    count = walk_and_count(target, count + 1)
-    walk_and_count(value, count)
-  end
-
-  defp walk_and_count({:inline_match, pattern, value}, count) do
-    count = walk_and_count(pattern, count + 1)
-    walk_and_count(value, count)
-  end
-
-  defp walk_and_count({:lambda, _params, _captures, body}, count),
-    do: walk_and_count(body, count + 1)
-
-  defp walk_and_count({:collection_op, _, func, coll}, count) do
-    count = walk_and_count(func, count + 1)
-    walk_and_count(coll, count)
-  end
-
-  defp walk_and_count({:collection_op, _, func, coll, init}, count) do
-    count = walk_and_count(func, count + 1)
-    count = walk_and_count(coll, count)
-    walk_and_count(init, count)
-  end
-
-  defp walk_and_count({:early_return, value}, count),
-    do: walk_and_count(value, count + 1)
-
-  defp walk_and_count({:tuple, elems}, count) when is_list(elems),
-    do: Enum.reduce(elems, count + 1, fn elem, c -> walk_and_count(elem, c) end)
-
-  # 3-tuple format fallback for compound nodes
+  # Every MetaAST node is a uniform 3-tuple `{type, meta, children}`, so a
+  # single structural clause plus leaf handling covers the whole grammar. The
+  # previous implementation carried 4- and 5-tuple clauses (`{:binary_op, _,
+  # _, left, right}` and friends) that could never match; they were dead code
+  # that implied two live formats.
   defp walk_and_count({_type, _meta, children}, count) when is_list(children) do
     Enum.reduce(children, count + 1, fn child, c -> walk_and_count(child, c) end)
   end

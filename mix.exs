@@ -102,6 +102,7 @@ defmodule MetaCredo.MixProject do
       files: ~w(
         lib
         priv/images
+        docs
         .formatter.exs
         mix.exs
         README.md
@@ -156,6 +157,7 @@ defmodule MetaCredo.MixProject do
   defp extras do
     [
       "README.md",
+      "docs/ARCHITECTURE.md": [title: "Architecture"],
       "CI.md": [title: "CI / Diff-Based Analysis"],
       LICENSE: [title: "License"],
       "CHANGELOG.md": [title: "Changelog"]

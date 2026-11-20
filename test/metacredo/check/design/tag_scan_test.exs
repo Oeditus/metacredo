@@ -105,5 +105,34 @@ defmodule MetaCredo.Check.Design.TagScanTest do
     test "returns nil for non-binary input" do
       assert TagScan.comment_text(nil, :elixir) == nil
     end
+
+    # A sigil (`~r/.../`, `~s(...)`) is a string literal in Elixir: a `#`
+    # inside its body is not a comment marker. The scanner previously treated
+    # it as one, truncating the line at the wrong offset.
+    test "ignores a # inside a regex sigil" do
+      assert TagScan.comment_text("  @pattern ~r/FIXME#anchor/ ", :elixir) == nil
+    end
+
+    test "ignores a # inside a paren-delimited sigil" do
+      assert TagScan.comment_text("  @re ~s(a#b)", :elixir) == nil
+    end
+
+    test "ignores a # inside a brace-delimited sigil" do
+      assert TagScan.comment_text("  @re ~r{a#b}", :elixir) == nil
+    end
+
+    test "still finds a real comment after a sigil" do
+      assert TagScan.comment_text("  @re ~s(a#b) # FIXME real", :elixir) == "FIXME real"
+    end
+
+    test "still finds a real comment after a regex sigil" do
+      assert TagScan.comment_text("  @re ~r/x#y/ # TODO here", :elixir) == "TODO here"
+    end
+
+    test "falls back safely when the sigil is unterminated on the line" do
+      # A multi-line heredoc sigil cannot be resolved from one line; the
+      # scanner must not crash and must not invent a comment.
+      assert TagScan.comment_text("  @re ~r/abc", :elixir) == nil
+    end
   end
 end

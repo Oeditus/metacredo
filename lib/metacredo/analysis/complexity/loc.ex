@@ -65,10 +65,12 @@ defmodule MetaCredo.Analysis.Complexity.LoC do
   def calculate(ast, metadata \\ %{}) do
     logical = count_logical_lines(ast)
 
-    # Extract from metadata or estimate
-    physical = Map.get(metadata, :line_count, logical)
+    # Physical/comment counts come from the document metadata. When it is
+    # absent, `physical` is `nil` rather than a copy of `logical`: silently
+    # reporting statement count as line count made the metric unreadable.
+    physical = Map.get(metadata, :line_count)
     comments = Map.get(metadata, :comment_lines, 0)
-    blank = max(0, physical - logical - comments)
+    blank = if is_integer(physical), do: max(0, physical - logical - comments), else: nil
 
     %{
       physical: physical,

@@ -52,44 +52,53 @@ defmodule MetaCredo.Analysis.Purity.Effects do
     end
   end
 
+  # Bare, unqualified names that unambiguously denote an effect. A local call
+  # such as `timeout(5000)` or `update_counters/2` must NOT be classified by
+  # prefix: those are ordinary project functions, and treating them as
+  # effects made `Purity.analyze/1` report pure code as impure.
   defp io_function?("print"), do: true
   defp io_function?("puts"), do: true
-  defp io_function?("write"), do: true
-  defp io_function?("read"), do: true
   defp io_function?("open"), do: true
   defp io_function?("input"), do: true
-  defp io_function?("IO." <> _), do: true
-  defp io_function?("File." <> _), do: true
-  defp io_function?("io:" <> _), do: true
-  defp io_function?("file:" <> _), do: true
-  defp io_function?(_), do: false
+  defp io_function?(name), do: qualified?(name) and qualified_io?(name)
 
-  defp random_function?("random" <> _), do: true
-  defp random_function?("rand" <> _), do: true
-  defp random_function?(":rand." <> _), do: true
-  defp random_function?("Random." <> _), do: true
-  defp random_function?(_), do: false
+  defp qualified_io?(name) do
+    prefix?(name, "IO.") or prefix?(name, "File.") or prefix?(name, "io:") or
+      prefix?(name, "file:")
+  end
 
-  defp time_function?("time" <> _), do: true
-  defp time_function?("now" <> _), do: true
-  defp time_function?("Date" <> _), do: true
-  defp time_function?("DateTime" <> _), do: true
-  defp time_function?("Time" <> _), do: true
-  defp time_function?("erlang:now"), do: true
-  defp time_function?(_), do: false
+  defp random_function?(name), do: qualified?(name) and qualified_random?(name)
 
-  defp network_function?("http" <> _), do: true
-  defp network_function?("fetch" <> _), do: true
-  defp network_function?("request" <> _), do: true
-  defp network_function?("socket" <> _), do: true
-  defp network_function?("HTTPoison." <> _), do: true
-  defp network_function?(_), do: false
+  defp qualified_random?(name) do
+    prefix?(name, "random") or prefix?(name, "rand") or prefix?(name, ":rand.") or
+      prefix?(name, "Random.")
+  end
 
-  defp database_function?("query" <> _), do: true
-  defp database_function?("insert" <> _), do: true
-  defp database_function?("update" <> _), do: true
-  defp database_function?("delete" <> _), do: true
-  defp database_function?("Repo." <> _), do: true
-  defp database_function?("Ecto." <> _), do: true
-  defp database_function?(_), do: false
+  defp time_function?(name), do: qualified?(name) and qualified_time?(name)
+
+  defp qualified_time?(name) do
+    prefix?(name, "time") or prefix?(name, "now") or prefix?(name, "Date") or
+      prefix?(name, "DateTime") or prefix?(name, "Time") or name == "erlang:now"
+  end
+
+  defp network_function?(name), do: qualified?(name) and qualified_network?(name)
+
+  defp qualified_network?(name) do
+    prefix?(name, "http") or prefix?(name, "fetch") or prefix?(name, "request") or
+      prefix?(name, "socket") or prefix?(name, "HTTPoison.")
+  end
+
+  defp database_function?(name), do: qualified?(name) and qualified_database?(name)
+
+  defp qualified_database?(name) do
+    prefix?(name, "query") or prefix?(name, "insert") or prefix?(name, "update") or
+      prefix?(name, "delete") or prefix?(name, "Repo.") or prefix?(name, "Ecto.")
+  end
+
+  # A name is qualified when it carries a module/receiver separator. Only
+  # qualified names are matched by prefix; bare local calls are matched
+  # exactly (see the `io_function?/1` clauses above).
+  defp qualified?(name), do: String.contains?(name, ".") or String.contains?(name, ":")
+
+  defp prefix?(name, prefix), do: String.starts_with?(name, prefix)
 end

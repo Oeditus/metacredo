@@ -37,6 +37,17 @@ defmodule MetaCredo.GitTest do
       assert {:error, _} = Git.changed_files(root, base: "nonexistent_ref_abc123")
     end
 
+    test "a missing base ref yields an actionable message, not an empty file list" do
+      # Previously `git diff nonexistent...HEAD` succeeded with empty output,
+      # so `--diff` reported "no changed files" and exited 0 -- a silent
+      # no-op indistinguishable from a clean run.
+      root = Git.repo_root(File.cwd!())
+
+      assert {:error, msg} = Git.changed_files(root, base: "nonexistent_ref_abc123")
+      assert msg =~ "not found"
+      assert msg =~ "--base"
+    end
+
     test "filters by extensions when provided" do
       root = Git.repo_root(File.cwd!())
 

@@ -73,14 +73,58 @@ defmodule Mix.Tasks.MetacredoTest do
     end
 
     test "does not override an explicit --files-included value" do
-      # `--files-included` is parsed via the pre-existing `parse_list/1`
-      # helper (also used for `--only`/`--ignore` categories), which turns
-      # each comma-separated entry into an atom -- that quirk is unrelated
-      # to this regression and preserved as-is here; the point of this test
-      # is only that an explicit `--files-included` still wins over `--path`.
+      # `--files-included` is a list of filesystem paths, so entries stay
+      # strings. (They were previously atomised by the shared `parse_list/1`
+      # helper; that helper now only atomises `--only`/`--ignore` categories.)
       execution_opts = MetacredoTask.build_execution_opts(path: "lib/", files_included: "src/")
 
-      assert Keyword.fetch!(execution_opts, :files_included) == [:"src/"]
+      assert Keyword.fetch!(execution_opts, :files_included) == ["src/"]
+    end
+  end
+
+  describe "category and confidence validation" do
+    test "--only accepts a known category" do
+      opts = MetacredoTask.build_execution_opts(only: "security,warning")
+
+      assert Keyword.fetch!(opts, :only) == [:security, :warning]
+    end
+
+    test "--ignore accepts a known category" do
+      opts = MetacredoTask.build_execution_opts(ignore: "design")
+
+      assert Keyword.fetch!(opts, :ignore) == [:design]
+    end
+
+    test "--only rejects a misspelled category instead of silently selecting none" do
+      # A typo previously produced a nonsense atom, selected zero checks and
+      # exited 0 -- a CI gate passing because of a misspelling.
+      assert_raise Mix.Error, ~r/Unknown category: "securty"/, fn ->
+        MetacredoTask.build_execution_opts(only: "securty")
+      end
+    end
+
+    test "--ignore rejects an unknown category" do
+      assert_raise Mix.Error, ~r/Unknown category/, fn ->
+        MetacredoTask.build_execution_opts(ignore: "nonsense")
+      end
+    end
+
+    test "--min-confidence accepts a known level" do
+      opts = MetacredoTask.build_execution_opts(min_confidence: "high")
+
+      assert Keyword.fetch!(opts, :min_confidence) == :high
+    end
+
+    test "--min-confidence is case-insensitive" do
+      opts = MetacredoTask.build_execution_opts(min_confidence: "HIGH")
+
+      assert Keyword.fetch!(opts, :min_confidence) == :high
+    end
+
+    test "--min-confidence rejects a misspelled level instead of silently disabling the filter" do
+      assert_raise Mix.Error, ~r/Invalid --min-confidence value: "hgih"/, fn ->
+        MetacredoTask.build_execution_opts(min_confidence: "hgih")
+      end
     end
   end
 end

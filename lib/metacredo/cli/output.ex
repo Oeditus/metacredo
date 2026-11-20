@@ -41,6 +41,9 @@ defmodule MetaCredo.CLI.Output do
       checks_run: checks
     } = report
 
+    failures = Map.get(report, :check_failures, [])
+    lifted? = Map.get(report, :test_exclusion_lifted, false)
+
     file_count = length(files)
     check_count = length(checks)
 
@@ -48,14 +51,25 @@ defmodule MetaCredo.CLI.Output do
     IO.puts("")
 
     if issues == [] do
-      print_footer(file_count, check_count, timing, summary)
+      print_footer(file_count, check_count, timing, summary, failures)
     else
       issues
       |> Enum.group_by(& &1.filename)
       |> Enum.sort()
       |> Enum.each(&print_file_issues/1)
 
-      print_footer(file_count, check_count, timing, summary)
+      print_footer(file_count, check_count, timing, summary, failures)
+    end
+
+    if lifted? do
+      IO.puts(
+        colorize(
+          "Note: test/ trees were included because an explicit path was given.",
+          :faint
+        )
+      )
+
+      IO.puts("")
     end
 
     :ok
@@ -68,7 +82,7 @@ defmodule MetaCredo.CLI.Output do
   inline PR annotations.
   """
   @spec print_github(map()) :: :ok
-  def print_github(%{issues: issues, summary: summary}) do
+  def print_github(%{issues: issues, summary: summary} = report) do
     Enum.each(issues, fn issue ->
       level = github_level(issue.severity)
       file = issue.filename || "unknown"
@@ -80,6 +94,14 @@ defmodule MetaCredo.CLI.Output do
           if(issue.column, do: ["col=#{issue.column}"], else: [])
 
       IO.puts("::#{level} #{Enum.join(location, ",")}::#{check_short}: #{issue.message}")
+    end)
+
+    # A crashed check must be visible in CI too, not just on a terminal.
+    Enum.each(Map.get(report, :check_failures, []), fn failure ->
+      IO.puts(
+        "::warning file=#{failure.filename}::" <>
+          "#{inspect(failure.check)} crashed and was skipped: #{failure.error}"
+      )
     end)
 
     total = summary.total
@@ -95,7 +117,7 @@ defmodule MetaCredo.CLI.Output do
 
   @doc "Formats issues as JSON string."
   @spec to_json(map()) :: String.t()
-  def to_json(%{issues: issues, summary: summary, timing_ms: timing}) do
+  def to_json(%{issues: issues, summary: summary, timing_ms: timing} = report) do
     data = %{
       issues:
         Enum.map(issues, fn i ->
@@ -109,6 +131,14 @@ defmodule MetaCredo.CLI.Output do
             line_no: i.line_no,
             column: i.column,
             trigger: i.trigger
+          }
+        end),
+      check_failures:
+        Enum.map(Map.get(report, :check_failures, []), fn failure ->
+          %{
+            check: to_string(failure.check),
+            filename: failure.filename,
+            error: failure.error
           }
         end),
       summary: summary,
@@ -168,10 +198,29 @@ defmodule MetaCredo.CLI.Output do
         end)
       end
 
-      if language do
-        if examples = Keyword.get(explanations, :examples) do
-          print_examples(examples, language)
-        end
+      case {language, Keyword.get(explanations, :examples)} do
+        {nil, _} ->
+          :ok
+
+        {_lang, nil} ->
+          :ok
+
+        {lang, examples} ->
+          # `print_examples/2` returns `:no_examples` when the check documents
+          # examples but none for this project's language. Say so instead of
+          # silently printing nothing.
+          if print_examples(examples, lang) == :no_examples do
+            IO.puts("")
+            IO.puts(colorize("    EXAMPLES", :bright))
+            IO.puts("")
+
+            IO.puts(
+              "      (no examples available for #{lang}; " <>
+                "this check documents: " <>
+                Enum.map_join(Keyword.keys(examples), ", ", &to_string/1) <>
+                ")"
+            )
+          end
       end
     end
 
@@ -231,11 +280,12 @@ defmodule MetaCredo.CLI.Output do
   #     ]
   #   ]
   #
-  # If no entry exists for `language`, the section is omitted.
+  # If no entry exists for `language`, returns `:no_examples` so the caller can
+  # say so rather than omitting the section silently.
   defp print_examples(examples, language) do
     case Keyword.get(examples, language) do
       nil ->
-        :ok
+        :no_examples
 
       lang_examples ->
         wrong = Keyword.get(lang_examples, :wrong)
@@ -259,6 +309,10 @@ defmodule MetaCredo.CLI.Output do
             IO.puts("")
             render_code_snippet(correct, lang_str)
           end
+
+          :ok
+        else
+          :no_examples
         end
     end
   end
@@ -309,13 +363,15 @@ defmodule MetaCredo.CLI.Output do
 
   defp check_suffix(_), do: ""
 
-  defp print_footer(file_count, check_count, timing, %{total: total} = summary) do
+  defp print_footer(file_count, check_count, timing, %{total: total} = summary, failures) do
     timing_s = if timing, do: Float.round(timing / @ms_per_s, @precision), else: 0.0
     IO.puts("")
 
     IO.puts(
       "Analysis took #{timing_s} seconds (running #{check_count} checks on #{file_count} files)"
     )
+
+    print_failure_notice(failures)
 
     if total == 0 do
       IO.puts(colorize("#{file_count} source files, found no issues.", :green))
@@ -337,14 +393,55 @@ defmodule MetaCredo.CLI.Output do
     IO.puts("")
 
     IO.puts(
-      "Showing priority issues: " <>
-        colorize("^", :red) <>
-        " " <>
-        colorize("^", :yellow) <>
-        " " <>
-        colorize(">", :blue) <>
-        "  (use `mix metacredo explain` to explain issues, `mix metacredo --help` for options)."
+      "Legend: " <>
+        colorize("[S]", :red) <>
+        " security  " <>
+        colorize("[W]", :red) <>
+        " warning  " <>
+        colorize("[R]", :blue) <>
+        " readability  " <>
+        colorize("[F]", :yellow) <>
+        " refactor  " <>
+        colorize("[D]", :green) <>
+        " design  " <>
+        colorize("[P]", :magenta) <>
+        " performance  " <>
+        colorize("[C]", :cyan) <>
+        " consistency  " <>
+        colorize("[O]", :cyan) <>
+        " observability"
     )
+
+    IO.puts(
+      "Use `mix metacredo explain <check>` to explain a finding, " <>
+        "`mix metacredo --help` for options."
+    )
+  end
+
+  # A check that raised is reported, not swallowed: without this a run where
+  # half the checks crashed is indistinguishable from a clean codebase.
+  defp print_failure_notice([]), do: :ok
+
+  defp print_failure_notice(failures) do
+    count = length(failures)
+
+    IO.puts(
+      colorize(
+        "#{count} check run(s) crashed and were skipped -- results are incomplete:",
+        :red
+      )
+    )
+
+    failures
+    |> Enum.uniq_by(&{&1.check, &1.error})
+    |> Enum.each(fn failure ->
+      IO.puts(
+        "    #{colorize(inspect(failure.check), :faint)} on #{failure.filename}: " <>
+          failure.error
+      )
+    end)
+
+    IO.puts("")
   end
 
   defp colorize(text, :bright), do: IO.ANSI.bright() <> text <> IO.ANSI.reset()

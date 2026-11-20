@@ -26,6 +26,7 @@ defmodule MetaCredo.Analysis.DeadCode do
   """
 
   alias MetaCredo.Analysis.DeadCode.Result
+  alias MetaCredo.Check.Utils, as: CheckUtils
   alias Metastatic.Document
 
   use MetaCredo.Analysis.Analyzer,
@@ -95,7 +96,7 @@ defmodule MetaCredo.Analysis.DeadCode do
 
             {[new_loc | locs], true}
 
-          match?({:early_return, _, _}, stmt) ->
+          CheckUtils.terminator?(stmt) ->
             {detect_unreachable_after_return(locs, stmt, path), true}
 
           true ->

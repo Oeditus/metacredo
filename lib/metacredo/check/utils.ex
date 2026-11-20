@@ -69,6 +69,11 @@ defmodule MetaCredo.Check.Utils do
     sigil_w sigil_W
   ]
 
+  # Statements that terminate control flow for the remainder of a block.
+  # Shared by `MetaCredo.Check.Refactor.DeadCode` and
+  # `MetaCredo.Analysis.DeadCode` so the two cannot drift apart.
+  @terminators ~W(raise reraise throw exit return)
+
   # Names that appear as :variable nodes but are actually special forms
   @special_names ~W[
     __MODULE__ __ENV__ __DIR__ __CALLER__ __STACKTRACE__
@@ -187,6 +192,38 @@ defmodule MetaCredo.Check.Utils do
   end
 
   @doc """
+  Returns true if the node terminates control flow for the remainder of a block.
+
+  `raise`/`reraise`/`throw`/`exit`/`return` are the statements after which any
+  following sibling can never execute. Metastatic emits them as plain
+  `:function_call` nodes rather than `:early_return`, so both shapes must be
+  recognised -- this is the single source of truth shared by
+  `MetaCredo.Check.Refactor.DeadCode` and `MetaCredo.Analysis.DeadCode`.
+
+  ## Examples
+
+      iex> CheckUtils.terminator?({:early_return, [], [{:literal, [subtype: :integer], 1}]})
+      true
+
+      iex> CheckUtils.terminator?({:function_call, [name: "raise"], []})
+      true
+
+      iex> CheckUtils.terminator?({:function_call, [name: "Logger.info"], []})
+      false
+  """
+  @spec terminator?(Metastatic.AST.meta_ast()) :: boolean()
+  def terminator?({:early_return, _meta, _children}), do: true
+
+  def terminator?({:function_call, meta, _args}) when is_list(meta) do
+    safe_name(meta) in @terminators
+  end
+
+  def terminator?(_), do: false
+
+  @doc """
+  Returns true if a variable name represents a module attribute
+
+  @doc \"""
   Returns true if a variable name represents a module attribute
   (starts with `@`), which should be excluded from snake_case checks
   since module attribute names follow their own conventions.

@@ -57,9 +57,21 @@ defmodule MetaCredo.Analysis.Complexity.FunctionMetrics do
       statement_count: statement_count,
       return_points: return_points,
       variable_count: variable_count,
-      parameter_count: 0
+      parameter_count: count_parameters(ast)
     }
   end
+
+  # The parameter count was previously hardcoded to 0, so the documented and
+  # typed `:parameter_count` field always read zero. Count the params declared
+  # on the outermost `:function_def` (an empty list when the AST is not one).
+  defp count_parameters({:function_def, meta, _children}) when is_list(meta) do
+    case Keyword.get(meta, :params) do
+      params when is_list(params) -> length(params)
+      _ -> 0
+    end
+  end
+
+  defp count_parameters(_), do: 0
 
   # Private implementation
 

@@ -13,6 +13,7 @@ defmodule MetaCredo.Execution do
           source_files: [SourceFile.t()],
           issues: [Issue.t()],
           checks_run: [module()],
+          check_failures: [map()],
           summary: map(),
           timing_ms: non_neg_integer() | nil
         }
@@ -27,7 +28,8 @@ defmodule MetaCredo.Execution do
           files_excluded: [term()] | nil,
           lift_test_exclusion: boolean(),
           no_db: boolean(),
-          no_user: boolean()
+          no_user: boolean(),
+          suggest: boolean()
         ]
 
   @doc """
@@ -47,6 +49,9 @@ defmodule MetaCredo.Execution do
     this to `false`: it supplies a *machine-derived* file list, not a
     deliberate user opt-in, so test files must stay excluded exactly as
     they are for a normal run.
+  - `:suggest` - Also run the checks that are disabled by default and report
+    their findings, so a user can see what the curated defaults are hiding
+    (default: `false`).
 
   When `:files_included` is given, the *default* `test/` exclusion is lifted
   so an explicitly targeted path (e.g. `--path test/`) is analysed; all other
@@ -71,12 +76,22 @@ defmodule MetaCredo.Execution do
     # Resolve which checks to run
     checks = resolve_checks(config, opts)
 
-    # Run checks on all source files
-    issues =
+    # Run checks on all source files. A check that raises must not kill the
+    # run (one broken check would otherwise hide every other finding), but it
+    # must also not vanish: crashes are collected and surfaced in the report
+    # so a silent zero-issue result is distinguishable from a clean codebase.
+    {issues, check_failures} =
       source_files
       |> Enum.flat_map(fn source_file ->
         run_checks_on_file(source_file, checks)
       end)
+      |> Enum.split_with(&match?({:issue, _}, &1))
+      |> then(fn {issue_tuples, failures} ->
+        {Enum.map(issue_tuples, &elem(&1, 1)), Enum.map(failures, &elem(&1, 1))}
+      end)
+
+    issues =
+      issues
       |> filter_disabled_by_comments(source_files)
       |> maybe_filter_strict(opts[:strict])
       |> maybe_filter_confidence(opts[:min_confidence])
@@ -99,9 +114,18 @@ defmodule MetaCredo.Execution do
       source_files: stripped_source_files,
       issues: issues,
       checks_run: Enum.map(checks, &elem(&1, 0)),
+      check_failures: check_failures,
+      # True when an explicit `:files_included` lifted the default `test/`
+      # exclusion -- the report says so, since that is a non-default mode.
+      test_exclusion_lifted: test_exclusion_lifted?(opts),
       summary: summarize(issues),
       timing_ms: elapsed
     }
+  end
+
+  defp test_exclusion_lifted?(opts) do
+    Keyword.get(opts, :lift_test_exclusion, true) and
+      is_list(Keyword.get(opts, :files_included))
   end
 
   @doc "Runs checks on pre-parsed source files."
@@ -109,6 +133,10 @@ defmodule MetaCredo.Execution do
   def run_on_source_files(source_files, checks) do
     source_files
     |> Enum.flat_map(&run_checks_on_file(&1, checks))
+    |> Enum.flat_map(fn
+      {:issue, issue} -> [issue]
+      {:check_failure, _failure} -> []
+    end)
     |> sort_issues()
   end
 
@@ -157,8 +185,28 @@ defmodule MetaCredo.Execution do
   defp resolve_checks(config, opts) do
     config
     |> Config.enabled_checks()
+    |> maybe_add_suggested_checks(opts)
     |> reject_umbrella_switches(config, opts)
     |> filter_categories(opts)
+  end
+
+  # `--suggest` re-enables the checks that `Config.default_disabled_checks/0`
+  # turned off, so a user can see what the curated defaults are hiding. These
+  # are appended (never replacing an already-enabled check) and still pass
+  # through the umbrella switches and category filters below.
+  defp maybe_add_suggested_checks(checks, opts) do
+    if opts[:suggest] do
+      enabled_modules = MapSet.new(checks, fn {mod, _} -> mod end)
+
+      suggested =
+        Config.default_disabled_checks()
+        |> Enum.reject(&MapSet.member?(enabled_modules, &1))
+        |> Enum.map(&{&1, []})
+
+      checks ++ suggested
+    else
+      checks
+    end
   end
 
   # Applies the `--no-db` / `--no-user` umbrella switches, which can come
@@ -208,17 +256,24 @@ defmodule MetaCredo.Execution do
     function_exported?(mod, :tags, 0) and tag in mod.tags()
   end
 
+  # Returns a flat list of `{:issue, Issue.t()}` and `{:check_failure, map()}`
+  # tuples. Tagging the two keeps crashes in the report (see `run/1`) without
+  # letting them masquerade as findings or silently disappear.
   defp run_checks_on_file(%SourceFile{} = source_file, checks) do
     Enum.flat_map(checks, fn {check_module, params} ->
       try do
         check_module.run(source_file, params)
+        |> Enum.map(&{:issue, &1})
       rescue
         e ->
           Logger.warning(fn ->
             "Check #{inspect(check_module)} failed on #{source_file.filename}: #{inspect(e)}"
           end)
 
-          []
+          [
+            {:check_failure,
+             %{check: check_module, filename: source_file.filename, error: Exception.message(e)}}
+          ]
       end
     end)
   end

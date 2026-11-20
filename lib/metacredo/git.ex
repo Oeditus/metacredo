@@ -33,7 +33,9 @@ defmodule MetaCredo.Git do
 
     with :ok <- validate_ref(base),
          :ok <- validate_ref(head),
-         :ok <- validate_filter(filter) do
+         :ok <- validate_filter(filter),
+         :ok <- ensure_ref_exists(repo_root, base),
+         :ok <- ensure_ref_exists(repo_root, head) do
       git_diff_switches = [
         "--no-pager",
         "diff",
@@ -101,7 +103,9 @@ defmodule MetaCredo.Git do
 
     with :ok <- validate_ref(base),
          :ok <- validate_ref(head),
-         :ok <- validate_filter(filter) do
+         :ok <- validate_filter(filter),
+         :ok <- ensure_ref_exists(repo_root, base),
+         :ok <- ensure_ref_exists(repo_root, head) do
       git_diff_switches = [
         "--no-pager",
         "diff",
@@ -165,6 +169,25 @@ defmodule MetaCredo.Git do
   end
 
   defp validate_filter(filter), do: {:error, "invalid diff filter: #{inspect(filter)}"}
+
+  # A base ref that does not exist (e.g. `origin/main` in a fresh clone with no
+  # remote) made `git diff` succeed with empty output, so `--diff` reported
+  # "no changed files" and exited 0 -- indistinguishable from a clean run.
+  # Reject an unresolvable ref explicitly instead.
+  defp ensure_ref_exists(repo_root, ref) do
+    case System.cmd("git", ["rev-parse", "--verify", "--quiet", ref],
+           cd: repo_root,
+           stderr_to_stdout: true
+         ) do
+      {_output, 0} ->
+        :ok
+
+      _ ->
+        {:error,
+         "git ref #{inspect(ref)} not found in #{repo_root} " <>
+           "(pass --base/--head to choose a different ref)"}
+    end
+  end
 
   defp maybe_filter_extensions(files, nil), do: files
   defp maybe_filter_extensions(files, []), do: files

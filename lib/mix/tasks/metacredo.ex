@@ -18,8 +18,17 @@ defmodule Mix.Tasks.Metacredo do
       $ mix metacredo --config path/to/.metacredo.exs
       $ mix metacredo --write-baseline .metacredo.baseline.json
       $ mix metacredo --baseline .metacredo.baseline.json
+      $ mix metacredo --suggest
       $ mix metacredo explain MetaCredo.Check.Security.HardcodedValue
       $ mix metacredo explain lib/my_app/accounts.ex:42
+
+  ## Suggest Mode
+
+  MetaCredo ships a curated set of default-enabled checks: noisy,
+  high-false-positive heuristics (see `MetaCredo.Config.default_disabled_checks/0`)
+  are off unless you opt in. `--suggest` runs those checks too and reports
+  their findings, so you can see what the defaults are hiding before deciding
+  whether to enable them in `.metacredo.exs`.
 
   ## Path
 
@@ -69,7 +78,7 @@ defmodule Mix.Tasks.Metacredo do
 
   use Mix.Task
 
-  alias MetaCredo.{CLI.Explain, CLI.Output, Execution, Git, Issue, Sources}
+  alias MetaCredo.{Check, CLI.Explain, CLI.Output, Execution, Git, Issue, Sources}
 
   # Switches understood by the analysis path. `explain` is a *subcommand*, not
   # a switch, and must be dispatched before `OptionParser` ever sees it:
@@ -94,7 +103,8 @@ defmodule Mix.Tasks.Metacredo do
     no_user: :boolean,
     min_confidence: :string,
     baseline: :string,
-    write_baseline: :string
+    write_baseline: :string,
+    suggest: :boolean
   ]
 
   @impl Mix.Task
@@ -178,15 +188,16 @@ defmodule Mix.Tasks.Metacredo do
     []
     |> maybe_add(:strict, opts[:strict])
     |> maybe_add(:config_file, opts[:config] || opts[:config_file])
-    |> maybe_add(:only, parse_list(opts[:only]))
-    |> maybe_add(:ignore, parse_list(opts[:ignore]))
+    |> maybe_add(:only, parse_categories(opts[:only]))
+    |> maybe_add(:ignore, parse_categories(opts[:ignore]))
     |> maybe_add(:files_included, parse_list(opts[:files_included]))
     |> maybe_add(:files_excluded, parse_list(opts[:files_excluded]))
     |> maybe_add(:no_db, opts[:no_db])
     |> maybe_add(:no_user, opts[:no_user])
-    |> maybe_add(:min_confidence, Issue.parse_confidence(opts[:min_confidence]))
+    |> maybe_add(:min_confidence, parse_confidence!(opts[:min_confidence]))
     |> maybe_add(:baseline, opts[:baseline])
     |> maybe_add(:write_baseline, opts[:write_baseline])
+    |> maybe_add(:suggest, opts[:suggest])
     |> maybe_add_path(opts)
     |> maybe_add_diff_files(opts)
   end
@@ -236,7 +247,11 @@ defmodule Mix.Tasks.Metacredo do
         |> maybe_add(:head, opts[:head])
         |> maybe_add(:extensions, Sources.supported_extensions())
 
-      files = Git.changed_files!(repo_root, diff_opts)
+      files =
+        case Git.changed_files(repo_root, diff_opts) do
+          {:ok, files} -> files
+          {:error, reason} -> Mix.raise("Failed to resolve git diff: #{reason}")
+        end
 
       # `Sources.find/1` needs absolute paths to read the files, but issue
       # `filename`s must stay repo-relative or GitHub Actions cannot attach
@@ -290,6 +305,8 @@ defmodule Mix.Tasks.Metacredo do
     Map.filter(lines, fn {file, _} -> String.starts_with?(file, scope) end)
   end
 
+  # Splits a comma-separated list of paths. Used for `--files-included` /
+  # `--files-excluded`, whose entries are filesystem paths, not categories.
   defp parse_list(nil), do: nil
   defp parse_list(""), do: nil
 
@@ -297,7 +314,52 @@ defmodule Mix.Tasks.Metacredo do
     str
     |> String.split(",")
     |> Enum.map(&String.trim/1)
-    |> Enum.map(&String.to_atom/1)
+    |> Enum.reject(&(&1 == ""))
+  end
+
+  # Splits a comma-separated list of check categories (`--only` / `--ignore`)
+  # and validates each against `Check.valid_categories/0`.
+  defp parse_categories(nil), do: nil
+  defp parse_categories(""), do: nil
+
+  defp parse_categories(str) do
+    str
+    |> parse_list()
+    |> Enum.map(&parse_category!/1)
+  end
+
+  # A category typo previously produced `String.to_atom/1` of a nonsense atom,
+  # which selected zero checks and made the run exit 0 -- a CI gate silently
+  # passing because of a misspelling. Reject unknown categories loudly instead.
+  defp parse_category!(name) do
+    case Enum.find(Check.valid_categories(), &(Atom.to_string(&1) == name)) do
+      nil ->
+        Mix.raise(
+          "Unknown category: #{inspect(name)}" <>
+            "\nValid categories: " <>
+            Enum.map_join(Check.valid_categories(), ", ", &Atom.to_string/1)
+        )
+
+      category ->
+        category
+    end
+  end
+
+  # `--min-confidence` used to fall through to `nil` on a typo, silently
+  # disabling the filter. Raise instead.
+  defp parse_confidence!(nil), do: nil
+
+  defp parse_confidence!(value) do
+    case Issue.parse_confidence(value) do
+      nil ->
+        Mix.raise(
+          "Invalid --min-confidence value: #{inspect(value)}" <>
+            "\nValid values: " <> Enum.join(Issue.confidence_levels(), ", ")
+        )
+
+      level ->
+        level
+    end
   end
 
   defp maybe_add(opts, _key, nil), do: opts

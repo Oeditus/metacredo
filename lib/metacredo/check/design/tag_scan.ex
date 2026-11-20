@@ -156,6 +156,23 @@ defmodule MetaCredo.Check.Design.TagScan do
     case String.next_grapheme(rest) do
       {grapheme, tail} ->
         cond do
+          # An Elixir sigil (`~r/.../`, `~s(...)`) is a string literal: a `#`
+          # inside its body is not a comment marker. Detect `~` + letter +
+          # delimiter and skip the whole sigil.
+          grapheme == "~" ->
+            case skip_sigil(rest) do
+              {:ok, skipped_bytes} ->
+                do_find_marker(
+                  binary_part(rest, skipped_bytes, byte_size(rest) - skipped_bytes),
+                  markers,
+                  offset + skipped_bytes,
+                  nil
+                )
+
+              :error ->
+                do_find_marker(tail, markers, offset + byte_size(grapheme), nil)
+            end
+
           grapheme in ["\"", "'"] ->
             do_find_marker(tail, markers, offset + byte_size(grapheme), grapheme)
 
@@ -204,5 +221,67 @@ defmodule MetaCredo.Check.Design.TagScan do
 
   defp marker_at?(rest, markers) do
     Enum.any?(markers, &String.starts_with?(rest, &1))
+  end
+
+  # Elixir sigil delimiters. Paired delimiters nest; single ones do not.
+  @sigil_pairs %{"(" => ")", "[" => "]", "{" => "}", "<" => ">"}
+  @sigil_singles ~w(/ | " ')
+
+  # `rest` starts at the `~`. Returns `{:ok, byte_size}` covering the whole
+  # sigil when it is well formed on this line, or `:error` when it is not a
+  # sigil (or the sigil is unterminated, e.g. a multi-line heredoc).
+  defp skip_sigil("~" <> after_tilde = rest) do
+    with {letter, after_letter} <- String.next_grapheme(after_tilde),
+         true <- letter?(letter),
+         {delimiter, body} <- String.next_grapheme(after_letter),
+         true <- delimiter in Map.keys(@sigil_pairs) or delimiter in @sigil_singles do
+      closing = Map.get(@sigil_pairs, delimiter, delimiter)
+      # Everything up to and including the opening delimiter.
+      prefix_bytes = byte_size(rest) - byte_size(body)
+
+      case find_closing(body, closing, 0) do
+        {:ok, relative} -> {:ok, prefix_bytes + relative}
+        :error -> :error
+      end
+    else
+      _ -> :error
+    end
+  end
+
+  defp skip_sigil(_), do: :error
+
+  # Sigils are `~` + one or more letters + a delimiter. Only the first letter
+  # is inspected; multi-letter sigils (`~S`, `~r`) and custom ones (`~x`) all
+  # share the shape.
+  defp letter?(grapheme) when is_binary(grapheme) do
+    grapheme in Enum.map(?a..?z, &<<&1>>) or grapheme in Enum.map(?A..?Z, &<<&1>>)
+  end
+
+  # Walks from just after the opening delimiter to the matching closing one,
+  # honouring backslash escapes. Returns the byte offset *past* the closing
+  # delimiter, relative to `rest`.
+  defp find_closing(rest, closing, consumed) do
+    case String.next_grapheme(rest) do
+      nil ->
+        :error
+
+      {grapheme, tail} ->
+        cond do
+          grapheme == closing ->
+            {:ok, consumed + byte_size(grapheme)}
+
+          grapheme == "\\" ->
+            case String.next_grapheme(tail) do
+              {escaped, tail2} ->
+                find_closing(tail2, closing, consumed + byte_size(grapheme) + byte_size(escaped))
+
+              nil ->
+                :error
+            end
+
+          true ->
+            find_closing(tail, closing, consumed + byte_size(grapheme))
+        end
+    end
   end
 end
