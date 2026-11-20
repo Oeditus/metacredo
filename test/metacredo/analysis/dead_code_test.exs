@@ -55,7 +55,7 @@ defmodule MetaCredo.Analysis.DeadCodeTest do
     # `raise`/`throw`/`return` arrive as plain `:function_call` nodes, not as
     # `:early_return`. Only matching `:early_return` missed every one of them.
     test "detects unreachable code after raise/throw/exit/return" do
-      for terminator <- ~w(raise throw exit return) do
+      for terminator <- ~W(raise throw exit return) do
         ast =
           {:block, [],
            [

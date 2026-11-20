@@ -45,7 +45,7 @@ defmodule MetaCredo.Analysis.PurityTest do
     # ordinary project function. Prefix-matching its *name* used to classify it
     # as a `:time` / `:database` effect, reporting pure code as impure.
     test "bare local calls are not given a spurious effect" do
-      for name <- ~w(timeout read_config update_counters random_bytes fetch_data) do
+      for name <- ~W(timeout read_config update_counters random_bytes fetch_data) do
         ast = {:function_call, [name: name], []}
 
         assert {:ok, result} = Purity.analyze(Document.new(ast, :elixir))
@@ -69,7 +69,7 @@ defmodule MetaCredo.Analysis.PurityTest do
     end
 
     test "known-pure stdlib calls do not downgrade a function to unknown" do
-      for name <- ~w(Map.get String.trim Enum.map) do
+      for name <- ~W(Map.get String.trim Enum.map) do
         ast = {:function_call, [name: name], []}
 
         assert {:ok, result} = Purity.analyze(Document.new(ast, :elixir))

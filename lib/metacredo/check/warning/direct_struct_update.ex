@@ -43,9 +43,8 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
   end
 
   # `%User{user | field: value}` is emitted by the Elixir adapter as
-  # `%`(User, Map.merge(user, Map.new([...]))) -- not as `:record_update`.
-  # The struct-update shape is the `Map.merge/2` whose first argument is a
-  # bare variable, so that is what we match.
+  # `%`(User, {:language_specific, [hint: :map_update, ...], []}) (or
+  # `Map.merge(user, Map.new([...]))` in older adapters) -- not as `:record_update`.
   defp traverse(
          {:function_call, meta, [_struct_name, merge_call]} = node,
          issues,
@@ -129,6 +128,9 @@ defmodule MetaCredo.Check.Warning.DirectStructUpdate do
 
   defp struct_update_merge?({:function_call, meta, [_base | _]}) when is_list(meta),
     do: Keyword.get(meta, :name) == "Map.merge"
+
+  defp struct_update_merge?({:language_specific, meta, _}) when is_list(meta),
+    do: Keyword.get(meta, :hint) == :map_update
 
   defp struct_update_merge?(_), do: false
 end

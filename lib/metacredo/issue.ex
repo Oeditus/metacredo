@@ -118,5 +118,5 @@ defmodule MetaCredo.Issue do
   Returns the list of accepted confidence level names, for error messages.
   """
   @spec confidence_levels() :: [String.t()]
-  def confidence_levels, do: ~w(high medium low)
+  def confidence_levels, do: ~W(high medium low)
 end

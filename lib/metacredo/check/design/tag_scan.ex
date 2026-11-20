@@ -225,7 +225,7 @@ defmodule MetaCredo.Check.Design.TagScan do
 
   # Elixir sigil delimiters. Paired delimiters nest; single ones do not.
   @sigil_pairs %{"(" => ")", "[" => "]", "{" => "}", "<" => ">"}
-  @sigil_singles ~w(/ | " ')
+  @sigil_singles ~W(/ | " ')
 
   # `rest` starts at the `~`. Returns `{:ok, byte_size}` covering the whole
   # sigil when it is well formed on this line, or `:error` when it is not a

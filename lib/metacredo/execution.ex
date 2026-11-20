@@ -14,6 +14,7 @@ defmodule MetaCredo.Execution do
           issues: [Issue.t()],
           checks_run: [module()],
           check_failures: [map()],
+          test_exclusion_lifted: boolean(),
           summary: map(),
           timing_ms: non_neg_integer() | nil
         }

@@ -132,15 +132,16 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
     end
   end
 
-  # Parsed Elixir map updates encode record writes as Map.put/Map.merge.
+  # Parsed Elixir map updates encode record writes as Map.put/Map.merge
+  # or as {:language_specific, [..., hint: :map_update, ...], []}.
   defp traverse(
-         {:function_call, meta, _children} = node,
+         {kind, meta, _children} = node,
          issues,
          source_file,
          status_fields,
          _min_states
        )
-       when is_list(meta) do
+       when kind in [:function_call, :language_specific] and is_list(meta) do
     found =
       for {field, value} <- status_writes(node),
           to_string(field) in status_fields,
@@ -250,6 +251,17 @@ defmodule MetaCredo.Check.Warning.ImperativeStatusHandling do
 
   defp status_writes({:function_call, meta, [_record, changes]}) do
     if CheckUtils.safe_name(meta) == "Map.merge", do: map_pairs(changes), else: []
+  end
+
+  defp status_writes({:language_specific, meta, _children}) when is_list(meta) do
+    with :map_update <- Keyword.get(meta, :hint),
+         {:|, _, [_base, pairs]} when is_list(pairs) <- Keyword.get(meta, :update) do
+      for {field, value} <- pairs,
+          (is_atom(field) or is_binary(field)) and (is_atom(value) or is_binary(value)),
+          do: {field, value}
+    else
+      _ -> []
+    end
   end
 
   defp status_writes(_node), do: []
