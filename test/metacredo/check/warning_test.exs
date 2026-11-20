@@ -79,6 +79,32 @@ defmodule MetaCredo.Check.WarningTest do
       issues = run_check(Warning.SilentErrorCase, ast: ast)
       assert_no_issues(issues)
     end
+
+    test "passes when :ok tuple and bare :error atom arms are present" do
+      ast =
+        {:pattern_match, [],
+         [
+           call("do_work", []),
+           match_arm(tuple([literal_symbol(:ok), var("r")]), [var("r")]),
+           match_arm(literal_symbol(:error), [literal_symbol(:error)])
+         ]}
+
+      issues = run_check(Warning.SilentErrorCase, ast: ast)
+      assert_no_issues(issues)
+    end
+
+    test "passes when :ok tuple and wildcard catch-all arm are present" do
+      ast =
+        {:pattern_match, [],
+         [
+           call("do_work", []),
+           match_arm(tuple([literal_symbol(:ok), var("r")]), [var("r")]),
+           match_arm({:wildcard, [], nil}, [literal_symbol(:ignore)])
+         ]}
+
+      issues = run_check(Warning.SilentErrorCase, ast: ast)
+      assert_no_issues(issues)
+    end
   end
 
   # ── SwallowingException ────────────────────────────────────────────

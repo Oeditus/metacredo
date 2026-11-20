@@ -103,12 +103,12 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
     end)
   end
 
-  # Check if any arm matches {:error, ...} or is a catch-all (_)
+  # Check if any arm matches {:error, ...}, :error, or is a catch-all (_)
   defp has_error_or_catchall?(arms) do
     Enum.any?(arms, fn
       {:match_arm, arm_meta, _body} ->
         pattern = Keyword.get(arm_meta, :pattern)
-        matches_error_tuple?(pattern) or catchall?(pattern)
+        matches_error?(pattern) or catchall?(pattern)
 
       _ ->
         false
@@ -118,9 +118,11 @@ defmodule MetaCredo.Check.Warning.SilentErrorCase do
   defp matches_ok_tuple?({:tuple, _, [{:literal, _, :ok} | _]}), do: true
   defp matches_ok_tuple?(_), do: false
 
-  defp matches_error_tuple?({:tuple, _, [{:literal, _, :error} | _]}), do: true
-  defp matches_error_tuple?(_), do: false
+  defp matches_error?({:tuple, _, [{:literal, _, :error} | _]}), do: true
+  defp matches_error?({:literal, _, :error}), do: true
+  defp matches_error?(_), do: false
 
+  defp catchall?({:wildcard, _, _}), do: true
   defp catchall?({:variable, _, "_"}), do: true
   # The Elixir adapter emits a bare `_` pattern as the symbol literal `:_`.
   defp catchall?({:literal, _, :_}), do: true

@@ -96,7 +96,12 @@ jobs:
           MIX_ENV: test
       - name: Enforce coverage floor
         run: |
-          TOTAL=$(jq -r '.coverage.total' cover/excoveralls.json)
+          TOTAL=$(jq -r '
+            [.source_files[].coverage[] | select(. != null)]
+            | if length == 0 then 0
+              else ((map(select(. > 0)) | length) * 1000 / length | floor / 10)
+              end
+          ' cover/excoveralls.json)
           echo "Total coverage: ${TOTAL}%"
           # Floor is set just below the current value so it can only ratchet up.
           FLOOR=54
