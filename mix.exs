@@ -2,7 +2,7 @@ defmodule MetaCredo.MixProject do
   use Mix.Project
 
   @app :metacredo
-  @version "0.7.4"
+  @version "0.8.0"
   @source_url "https://github.com/Oeditus/metacredo"
   @homepage_url "https://oeditus.com"
 
