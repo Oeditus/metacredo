@@ -37,7 +37,14 @@ defmodule MetaCredo.Check.SameValueOperandsTest do
     OperationOnSameValues
   }
 
+  # These tests parse real Rust source, so they need the Rust toolchain that
+  # backs the Metastatic adapter. CI installs only Elixir/OTP; see
+  # `CheckCase.language_available?/1`.
+  @rust_skip CheckCase.skip_unless_available(:rust)
+  @elixir_skip CheckCase.skip_unless_available(:elixir)
+
   describe "OperationOnSameValues on Rust" do
+    @describetag skip: @rust_skip
     test "detects `x - x` (always 0)" do
       issues = run_rust(OperationOnSameValues, "fn f(x: i64) -> i64 { x - x }")
 
@@ -82,6 +89,7 @@ defmodule MetaCredo.Check.SameValueOperandsTest do
   end
 
   describe "BoolOperationOnSameValues on Rust" do
+    @describetag skip: @rust_skip
     test "detects `x && x`" do
       issues = run_rust(BoolOperationOnSameValues, "fn f(x: bool) -> bool { x && x }")
 
@@ -108,6 +116,7 @@ defmodule MetaCredo.Check.SameValueOperandsTest do
   end
 
   describe "Elixir behaviour is unchanged" do
+    @describetag skip: @elixir_skip
     test "OperationOnSameValues still detects `x - x`" do
       issues = run_elixir(OperationOnSameValues, "def f(x), do: x - x")
 

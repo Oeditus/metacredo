@@ -19,7 +19,15 @@ defmodule MetaCredo.Check.Design.TagRustTest do
   alias MetaCredo.Check.Design.{TagFixme, TagTodo}
   alias MetaCredo.CheckCase
 
+  # These tests parse real Rust source, so they need the Rust toolchain that
+  # backs the Metastatic adapter. CI installs only Elixir/OTP; see
+  # `CheckCase.language_available?/1`.
+  @rust_skip CheckCase.skip_unless_available(:rust)
+  @elixir_skip CheckCase.skip_unless_available(:elixir)
+  @javascript_skip CheckCase.skip_unless_available(:javascript)
+
   describe "TagTodo on Rust" do
+    @describetag skip: @rust_skip
     test "detects a whole-line `// TODO` comment" do
       source = """
       // TODO: replace this with a real implementation
@@ -103,6 +111,7 @@ defmodule MetaCredo.Check.Design.TagRustTest do
   end
 
   describe "TagFixme on Rust" do
+    @describetag skip: @rust_skip
     test "detects a `// FIXME` comment" do
       source = """
       // FIXME: this panics on empty input
@@ -128,12 +137,14 @@ defmodule MetaCredo.Check.Design.TagRustTest do
   end
 
   describe "other languages are unchanged" do
+    @tag skip: @elixir_skip
     test "TagTodo still detects an Elixir comment" do
       issues = run_elixir(TagTodo, "# TODO: fix\nx = 1\n")
 
       CheckCase.assert_issue(issues, message: ~r/TODO/)
     end
 
+    @tag skip: @javascript_skip
     test "TagTodo still detects a JavaScript comment" do
       issues = run(TagTodo, "// TODO: fix\nconst x = 1;\n", :javascript, "sample.js", [])
 

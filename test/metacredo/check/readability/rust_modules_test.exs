@@ -35,7 +35,17 @@ defmodule MetaCredo.Check.Readability.RustModulesTest do
   alias MetaCredo.Check.Utils, as: CheckUtils
   alias MetaCredo.CheckCase
 
+  # These tests parse real source through the Metastatic adapters, so they can
+  # only run where the corresponding toolchain is installed. CI installs only
+  # Elixir/OTP; see `CheckCase.language_available?/1`.
+  @rust_skip CheckCase.skip_unless_available(:rust)
+  @elixir_skip CheckCase.skip_unless_available(:elixir)
+  @python_skip CheckCase.skip_unless_available(:python)
+  @ruby_skip CheckCase.skip_unless_available(:ruby)
+  @haskell_skip CheckCase.skip_unless_available(:haskell)
+
   describe "ModuleDoc on Rust" do
+    @describetag skip: @rust_skip
     test "does not report an undocumented `mod x;` declaration" do
       issues = run_rust(ModuleDoc, "mod config;")
 
@@ -80,6 +90,8 @@ defmodule MetaCredo.Check.Readability.RustModulesTest do
   end
 
   describe "ModuleNames on Rust" do
+    @describetag skip: @rust_skip
+
     test "does not report a snake_case `mod` declaration" do
       issues = run_rust(ModuleNames, "mod config;")
 
@@ -106,12 +118,14 @@ defmodule MetaCredo.Check.Readability.RustModulesTest do
   end
 
   describe "other languages are unchanged" do
+    @tag skip: @elixir_skip
     test "ModuleDoc still reports an undocumented Elixir module" do
       issues = run_elixir(ModuleDoc, "defmodule Foo do\nend")
 
       CheckCase.assert_issue(issues, message: ~r/Foo/)
     end
 
+    @tag skip: @elixir_skip
     test "ModuleDoc still reports an undocumented empty-bodied Elixir module" do
       # An empty body must not be mistaken for a Rust declaration.
       issues = run_elixir(ModuleDoc, "defmodule Empty do\nend")
@@ -119,6 +133,7 @@ defmodule MetaCredo.Check.Readability.RustModulesTest do
       CheckCase.assert_issue(issues, message: ~r/Empty/)
     end
 
+    @tag skip: @elixir_skip
     test "ModuleNames still reports a non-PascalCase Elixir module" do
       # `defmodule my_app.foo` is not valid Elixir (the adapter falls back to
       # an "unknown" container name), so the fixture uses a single lowercase
@@ -128,18 +143,21 @@ defmodule MetaCredo.Check.Readability.RustModulesTest do
       CheckCase.assert_issue(issues, message: ~r/my_app/)
     end
 
+    @tag skip: @python_skip
     test "ModuleDoc still reports an undocumented Python class" do
       issues = run(ModuleDoc, "class Foo:\n    pass\n", :python, "a.py")
 
       CheckCase.assert_issue(issues, message: ~r/Foo/)
     end
 
+    @tag skip: @ruby_skip
     test "ModuleDoc still reports an undocumented Ruby module" do
       issues = run(ModuleDoc, "module Foo\nend\n", :ruby, "a.rb")
 
       CheckCase.assert_issue(issues, message: ~r/Foo/)
     end
 
+    @tag skip: @haskell_skip
     test "ModuleDoc still reports an undocumented Haskell module" do
       # The Haskell adapter reports the module name as "Main" for this
       # fixture, so the assertion matches on that rather than the source text.

@@ -266,6 +266,106 @@ defmodule MetaCredo.CheckCase do
   # -- Conformance testing --
 
   @doc """
+  Returns `true` when `language` can actually be parsed in this environment.
+
+  MetaCredo's non-BEAM adapters shell out to external toolchains: Ruby needs
+  the `parser` gem, Haskell a compiled parser or `stack`, Rust a compiled
+  bridge or `cargo`. CI installs only Elixir/OTP, so those adapters are
+  unavailable there and any test that parses real source in one of those
+  languages must skip rather than fail.
+
+  The probe parses a minimal but *valid* snippet, which is the only reliable
+  check: an adapter module can be compiled and registered while its toolchain
+  is missing, and the failure only surfaces at parse time. Haskell is the
+  worst case -- with `stack` present but the parser unbuilt, parsing triggers
+  a full build and can block for minutes, so the probe is bounded by a
+  timeout and treated as unavailable when it expires.
+
+  Results are memoised per language, so the (potentially slow) probe runs at
+  most once per language per test run.
+
+  ## Examples
+
+      iex> CheckCase.language_available?(:elixir)
+      true
+  """
+  @spec language_available?(atom()) :: boolean()
+  def language_available?(language) do
+    case :persistent_term.get({__MODULE__, :available, language}, :unset) do
+      :unset ->
+        available? = probe_language(language)
+        :persistent_term.put({__MODULE__, :available, language}, available?)
+        available?
+
+      cached ->
+        cached
+    end
+  end
+
+  @doc """
+  Returns a `skip:` reason when `language` cannot be parsed here, else `nil`.
+
+  Intended for `@tag skip: CheckCase.skip_unless_available(:ruby)` and for
+  `@describetag skip: ...`, so a missing toolchain skips the affected tests
+  instead of failing the suite.
+  """
+  @spec skip_unless_available(atom()) :: String.t() | nil
+  def skip_unless_available(language) do
+    if language_available?(language) do
+      nil
+    else
+      "#{language} adapter is not available in this environment"
+    end
+  end
+
+  # Minimal valid source per language, used by `language_available?/1`.
+  @probe_sources %{
+    elixir: {"defmodule Probe do\nend", "probe.ex"},
+    erlang: {"-module(probe).\n", "probe.erl"},
+    python: {"x = 1\n", "probe.py"},
+    ruby: {"x = 1\n", "probe.rb"},
+    haskell: {"module Probe where\n", "probe.hs"},
+    javascript: {"const x = 1;\n", "probe.js"},
+    typescript: {"const x: number = 1;\n", "probe.ts"},
+    rust: {"fn main() {}\n", "probe.rs"}
+  }
+
+  # Parsing a probe must never hang the suite: Haskell's `stack exec` fallback
+  # builds the parser on first use, which can take minutes.
+  @probe_timeout_ms 15_000
+
+  defp probe_language(language) do
+    case Map.fetch(@probe_sources, language) do
+      {:ok, {source, filename}} ->
+        # `async_nolink` (via a throwaway supervisor) rather than `Task.async`:
+        # a probe that is killed on timeout must not leave a `{ref, result}`
+        # message in the caller's mailbox, which would leak into the next
+        # test in the same process.
+        {:ok, pid} = Task.Supervisor.start_link()
+
+        try do
+          task =
+            Task.Supervisor.async_nolink(pid, fn ->
+              match?({:ok, _}, SourceFile.parse(source, filename, language))
+            end)
+
+          case Task.yield(task, @probe_timeout_ms) || Task.shutdown(task, :brutal_kill) do
+            {:ok, available?} -> available?
+            _ -> false
+          end
+        after
+          Supervisor.stop(pid)
+        end
+
+      :error ->
+        # No probe source: fall back to whether the adapter is registered.
+        Metastatic.Languages.supported?(language)
+    end
+  rescue
+    _ -> false
+  end
+
+  @doc """
   Builds a `SourceFile` by actually parsing `source` as `language`.
 
   Unlike `source_file_from_ast/2`, this exercises the real Metastatic
