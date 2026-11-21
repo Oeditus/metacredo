@@ -257,6 +257,46 @@ defmodule MetaCredo.Check.Utils do
   def module_name?(_), do: false
 
   @doc """
+  Returns true when a `:container` node is a Rust `mod` item.
+
+  Rust declares modules in two forms, and the MetaAST only distinguishes them
+  by their body:
+
+      mod config;              # declaration -- body is `[]`
+      mod inline { ... }       # definition -- body holds the items
+
+  A *declaration* is not a module definition: it names another file (or an
+  inline block) and has no body, no documentation, and a name that Rust
+  conventionally writes in `snake_case`. Applying Elixir's module rules to it
+  produces pure noise -- `ModuleDoc` reports "no documentation" for something
+  that cannot carry documentation, and `ModuleNames` reports "not in
+  PascalCase" for a name that is correctly cased for Rust.
+
+  The `rust_kind: "Module"` key is set by `Metastatic.Adapters.Rust.ToMeta`
+  and by no other adapter, so it identifies Rust `mod` items precisely. It is
+  deliberately *not* inferred from an empty body: empty-bodied containers also
+  occur in Elixir (`defmodule Foo do end`) and Haskell, where the module rules
+  do apply.
+
+  ## Examples
+
+      iex> CheckUtils.rust_mod?(container_type: :module, rust_kind: "Module")
+      true
+
+      iex> CheckUtils.rust_mod?(container_type: :module, rust_kind: "Struct")
+      false
+
+      iex> CheckUtils.rust_mod?(container_type: :module)
+      false
+  """
+  @spec rust_mod?(keyword()) :: boolean()
+  def rust_mod?(meta) when is_list(meta) do
+    Keyword.get(meta, :rust_kind) == "Module" and Keyword.get(meta, :language) == :rust
+  end
+
+  def rust_mod?(_), do: false
+
+  @doc """
   Collects string content from documentation attributes (`@moduledoc`, `@doc`,
   `@typedoc`).
 

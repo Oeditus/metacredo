@@ -43,19 +43,26 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
     name = Keyword.get(meta, :name, "")
     name_str = to_string(name)
 
-    if name_str != "" and not Regex.match?(@pascal_case, name_str) do
-      line = CheckUtils.line_of(meta)
+    cond do
+      # Rust names modules in snake_case, so PascalCase is the wrong rule for
+      # a `mod` item. See `CheckUtils.rust_mod?/1`.
+      CheckUtils.rust_mod?(meta) ->
+        {node, issues}
 
-      issue =
-        format_issue(source_file,
-          message: "Module name '#{name_str}' is not in PascalCase",
-          trigger: name_str,
-          line_no: line
-        )
+      name_str == "" or Regex.match?(@pascal_case, name_str) ->
+        {node, issues}
 
-      {node, [issue | issues]}
-    else
-      {node, issues}
+      true ->
+        line = CheckUtils.line_of(meta)
+
+        issue =
+          format_issue(source_file,
+            message: "Module name '#{name_str}' is not in PascalCase",
+            trigger: name_str,
+            line_no: line
+          )
+
+        {node, [issue | issues]}
     end
   end
 

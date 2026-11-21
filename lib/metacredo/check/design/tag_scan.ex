@@ -109,6 +109,12 @@ defmodule MetaCredo.Check.Design.TagScan do
   # Comment syntax by language. Languages not listed fall back to `:none`
   # (no source-line scanning) rather than guessing and risking false
   # positives.
+  #
+  # Rust was previously missing from this table, so `// TODO:` in a `.rs`
+  # file never matched and `TagTodo`/`TagFixme` were silently dead on Rust
+  # source -- the check reported nothing while the same comment in an Elixir
+  # file was flagged. Rust uses `//` for line comments, exactly as
+  # JavaScript and TypeScript do.
   defp comment_marker(:elixir), do: {:line, ["#"]}
   defp comment_marker(:ruby), do: {:line, ["#"]}
   defp comment_marker(:python), do: {:line, ["#"]}
@@ -116,6 +122,7 @@ defmodule MetaCredo.Check.Design.TagScan do
   defp comment_marker(:haskell), do: {:line, ["--"]}
   defp comment_marker(:javascript), do: {:line, ["//"]}
   defp comment_marker(:typescript), do: {:line, ["//"]}
+  defp comment_marker(:rust), do: {:line, ["//"]}
   defp comment_marker(:erlang), do: {:line, ["%"]}
   defp comment_marker(_), do: :none
 

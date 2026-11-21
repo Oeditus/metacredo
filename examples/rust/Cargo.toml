@@ -1,0 +1,8 @@
+[package]
+name = "metacredo-rust-example"
+version = "0.1.0"
+edition = "2021"
+description = "A deliberately flawed Rust crate used to exercise metacredo's cross-language checks."
+publish = false
+
+[dependencies]

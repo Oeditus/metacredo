@@ -98,6 +98,25 @@ defmodule MetaCredo.Check.Design.TagScanTest do
       assert TagScan.comment_text("X = 1. % TODO", :erlang) == "TODO"
     end
 
+    # Rust was absent from the comment-marker table, so `// TODO:` in a `.rs`
+    # file was never scanned and TagTodo/TagFixme were silently dead on Rust
+    # source while working on Elixir.
+    test "extracts a Rust line comment" do
+      assert TagScan.comment_text("let x = 1; // TODO: fix", :rust) == "TODO: fix"
+    end
+
+    test "extracts a whole-line Rust comment" do
+      assert TagScan.comment_text("// FIXME: broken", :rust) == "FIXME: broken"
+    end
+
+    test "ignores a // inside a Rust string literal" do
+      assert TagScan.comment_text("let url = \"http://example.com\";", :rust) == nil
+    end
+
+    test "finds a Rust comment after a closed string" do
+      assert TagScan.comment_text("let u = \"http://x\"; // TODO", :rust) == "TODO"
+    end
+
     test "returns nil for languages without a configured marker" do
       assert TagScan.comment_text("# TODO", :unknown_language) == nil
     end

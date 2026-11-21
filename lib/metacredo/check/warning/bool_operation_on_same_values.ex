@@ -72,5 +72,21 @@ defmodule MetaCredo.Check.Warning.BoolOperationOnSameValues do
 
   defp traverse(node, issues, _source_file), do: {node, issues}
 
-  defp structurally_equal?(a, b), do: a == b
+  # Compares two operand subtrees for structural identity, ignoring source
+  # position.
+  #
+  # A plain `a == b` is wrong across languages: the Rust adapter stamps
+  # `line:`/`col:` on *every* node, so `x && x` yields two `:variable` nodes
+  # that differ only in position and the equality test is always false -- the
+  # check never fired on Rust source. Elixir nodes carry no position metadata,
+  # which is why the defect stayed hidden. Position is presentation, not
+  # structure, so it is dropped before comparing.
+  defp structurally_equal?(a, b), do: strip_position(a) == strip_position(b)
+
+  defp strip_position({type, meta, children}) when is_list(meta),
+    do: {type, Keyword.drop(meta, [:line, :col]), strip_position(children)}
+
+  defp strip_position(list) when is_list(list), do: Enum.map(list, &strip_position/1)
+
+  defp strip_position(other), do: other
 end

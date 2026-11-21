@@ -67,19 +67,26 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
        when is_list(meta) and is_list(children) do
     name = Keyword.get(meta, :name, "unknown")
 
-    if has_doc_comment?(children) do
-      {node, issues}
-    else
-      line = CheckUtils.line_of(meta)
+    cond do
+      # A Rust `mod x;` declaration names another file and cannot carry
+      # documentation, so requiring it would be unsatisfiable.
+      CheckUtils.rust_mod?(meta) ->
+        {node, issues}
 
-      issue =
-        format_issue(source_file,
-          message: "Module '#{name}' has no documentation",
-          trigger: to_string(name),
-          line_no: line
-        )
+      has_doc_comment?(children) ->
+        {node, issues}
 
-      {node, [issue | issues]}
+      true ->
+        line = CheckUtils.line_of(meta)
+
+        issue =
+          format_issue(source_file,
+            message: "Module '#{name}' has no documentation",
+            trigger: to_string(name),
+            line_no: line
+          )
+
+        {node, [issue | issues]}
     end
   end
 
