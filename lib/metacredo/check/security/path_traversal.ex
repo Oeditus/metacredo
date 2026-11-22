@@ -36,6 +36,68 @@ defmodule MetaCredo.Check.Security.PathTraversal do
             end
           end
           """
+        ],
+        javascript: [
+          wrong: """
+          // A caller-supplied filename is joined straight onto the uploads dir
+          const path = require("path");
+          const fs = require("fs");
+
+          function loadReport(filename) {
+            const filePath = path.join("/var/uploads", filename);
+            return fs.readFileSync(filePath, "utf8");
+          }
+          """,
+          correct: """
+          // basename() strips any ../ segments before the path is built
+          const path = require("path");
+          const fs = require("fs");
+
+          function loadReport(filename) {
+            const filePath = path.resolve("/var/uploads", path.basename(filename));
+            return fs.readFileSync(filePath, "utf8");
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // A caller-supplied filename is joined straight onto the uploads dir
+          export function loadReport(filename: string): string {
+            const filePath = path.join("/var/uploads", filename);
+            return readFileSync(filePath, "utf8");
+          }
+          """,
+          correct: """
+          // basename() strips any ../ segments before the path is built
+          export function loadReportSafe(filename: string): string {
+            const filePath = path.resolve("/var/uploads", path.basename(filename));
+            return readFileSync(filePath, "utf8");
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // A caller-supplied filename is concatenated onto the config dir
+          func loadConfig(filename string) {
+          \tdata, err := os.ReadFile("/etc/app/" + filename)
+          \tif err != nil {
+          \t\tfmt.Println("read failed")
+          \t\treturn
+          \t}
+          \tfmt.Println(string(data))
+          }
+          """,
+          correct: """
+          // filepath.Base strips any ../ segments before the path is built
+          func loadConfigSafe(filename string) {
+          \tdata, err := os.ReadFile(filepath.Join("/etc/app", filepath.Base(filename)))
+          \tif err != nil {
+          \t\tfmt.Println("read failed")
+          \t\treturn
+          \t}
+          \tfmt.Println(string(data))
+          }
+          """
         ]
       ]
     ]

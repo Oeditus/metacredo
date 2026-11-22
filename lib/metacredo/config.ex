@@ -49,6 +49,46 @@ defmodule MetaCredo.Config do
           }
         }
 
+  @doc """
+  Returns the default set of directories scanned when no configuration is
+  given.
+
+  The list is the union of the conventional source roots of every language
+  Metastatic supports, because MetaCredo is cross-language by design: a
+  project that adds a Go service (`cmd/`, `pkg/`, `internal/`) or a
+  JavaScript/TypeScript front end (`app/`, `assets/js/`) next to its Elixir
+  code should not have to edit `.metacredo.exs` before those files are
+  analysed at all. A directory that does not exist contributes nothing --
+  `MetaCredo.Sources.expand_path/1` simply matches no files -- so listing
+  them is free for single-language projects.
+
+  ## Examples
+
+      iex> "lib/" in MetaCredo.Config.default_included_paths()
+      true
+
+      iex> "cmd/" in MetaCredo.Config.default_included_paths()
+      true
+  """
+  @spec default_included_paths() :: [String.t()]
+  def default_included_paths do
+    [
+      # Elixir / Erlang
+      "lib/",
+      "apps/",
+      # Generic source root (Rust, Java, Kotlin, Scala, C/C++, C#, Dart, PHP)
+      "src/",
+      # Phoenix / JavaScript front end
+      "web/",
+      "app/",
+      "assets/js/",
+      # Go
+      "cmd/",
+      "pkg/",
+      "internal/"
+    ]
+  end
+
   @doc "Reads and parses the configuration file, falling back to defaults."
   @spec read(String.t() | nil) :: config()
   def read(config_file \\ nil) do
@@ -69,7 +109,7 @@ defmodule MetaCredo.Config do
       no_db: false,
       no_user: false,
       files: %{
-        included: ["lib/", "src/", "web/"],
+        included: default_included_paths(),
         excluded: [
           # Anchored with `(^|/)` (not just a leading `/`) so these also
           # match relative paths that have no leading path separator before

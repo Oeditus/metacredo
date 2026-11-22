@@ -123,6 +123,10 @@ defmodule MetaCredo.Check.Design.TagScan do
   defp comment_marker(:javascript), do: {:line, ["//"]}
   defp comment_marker(:typescript), do: {:line, ["//"]}
   defp comment_marker(:rust), do: {:line, ["//"]}
+  # Go uses `//` for line comments (and `/* */` for block comments, which a
+  # single-line scan cannot span). Without this entry `// TODO:` in a `.go`
+  # file matched nothing, so `TagTodo`/`TagFixme` were silently dead on Go.
+  defp comment_marker(:go), do: {:line, ["//"]}
   defp comment_marker(:erlang), do: {:line, ["%"]}
   defp comment_marker(_), do: :none
 

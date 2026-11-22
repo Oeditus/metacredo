@@ -29,6 +29,7 @@ defmodule MetaCredo.CLI.Explain do
     {["pyproject.toml", "requirements.txt", "setup.py"], :python},
     {["Gemfile"], :ruby},
     {["stack.yaml", "cabal.project", "package.yaml"], :haskell},
+    {["go.mod"], :go},
     {["tsconfig.json"], :typescript},
     {["package.json"], :javascript},
     {["cure.json"], :cure},

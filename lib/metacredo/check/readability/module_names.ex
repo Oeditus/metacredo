@@ -5,8 +5,10 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
     confidence: :high,
     explanations: [
       check: """
-      Detects module names that do not follow PascalCase convention.
-      Module names in Elixir should use PascalCase (e.g. `MyApp.UserAccount`).
+      Detects module names that do not follow the naming convention of the
+      source language. Elixir modules use PascalCase (e.g. `MyApp.UserAccount`);
+      Go packages are conventionally lower-case (`package main`) and are not
+      subject to a case rule at all.
       """,
       examples: [
         elixir: [
@@ -19,6 +21,38 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
           # PascalCase for every segment separated by dots
           defmodule MyApp.UserAccount, do: ...
           defmodule MyApp.Repo, do: ...
+          """
+        ],
+        javascript: [
+          wrong: """
+          // A class is the JavaScript module-level container; lower-case is not idiomatic
+          class userAccount {
+            constructor(id) {
+              this.id = id;
+            }
+          }
+          """,
+          correct: """
+          // PascalCase for classes and module namespaces
+          class UserAccount {
+            constructor(id) {
+              this.id = id;
+            }
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // A class is the TypeScript module-level container; lower-case is not idiomatic
+          class userAccount {
+            id: number;
+          }
+          """,
+          correct: """
+          // PascalCase for classes and module namespaces
+          class UserAccount {
+            id: number;
+          }
           """
         ]
       ]
@@ -46,7 +80,11 @@ defmodule MetaCredo.Check.Readability.ModuleNames do
     cond do
       # Rust names modules in snake_case, so PascalCase is the wrong rule for
       # a `mod` item. See `CheckUtils.rust_mod?/1`.
-      CheckUtils.rust_mod?(meta) ->
+      #
+      # Go opens every file with a lower-case `package` clause, which the
+      # adapter reports as a `:module` container; Go has no case rule for
+      # package names. See `CheckUtils.go_package?/1`.
+      CheckUtils.nameless_container?(meta) ->
         {node, issues}
 
       name_str == "" or Regex.match?(@pascal_case, name_str) ->

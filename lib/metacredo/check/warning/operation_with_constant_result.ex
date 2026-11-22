@@ -22,6 +22,48 @@ defmodule MetaCredo.Check.Warning.OperationWithConstantResult do
           total = quantity * unit_price
           adjusted = price + discount
           """
+        ],
+        javascript: [
+          wrong: """
+          // Multiplying by 0 always gives 0 -- the variable is never used
+          function total(quantity) {
+            return quantity * 0;
+          }
+          """,
+          correct: """
+          // Replace the constant with the actual intended operand
+          function total(quantity, unitPrice) {
+            return quantity * unitPrice;
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // Multiplying by 0 always gives 0 -- the variable is never used
+          export function total(quantity: number): number {
+            return quantity * 0;
+          }
+          """,
+          correct: """
+          // Replace the constant with the actual intended operand
+          export function total(quantity: number, unitPrice: number): number {
+            return quantity * unitPrice;
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // Multiplying by 0 always gives 0 -- the variable is never used
+          func total(quantity int) int {
+          \treturn quantity * 0
+          }
+          """,
+          correct: """
+          // Replace the constant with the actual intended operand
+          func total(quantity, unitPrice int) int {
+          \treturn quantity * unitPrice
+          }
+          """
         ]
       ]
     ]

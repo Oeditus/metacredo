@@ -21,6 +21,54 @@ defmodule MetaCredo.Check.Warning.OperationOnSameValues do
           diff = end_date - start_date
           ratio = count / total
           """
+        ],
+        javascript: [
+          wrong: """
+          // ratio is always 1 -- the divisor should be the total, not the count
+          function progress(completed) {
+            const ratio = completed / completed;
+            return ratio;
+          }
+          """,
+          correct: """
+          // Use the distinct values that were intended
+          function progress(completed, total) {
+            const ratio = completed / total;
+            return ratio;
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // ratio is always 1 -- the divisor should be the total, not the count
+          export function progress(completed: number): number {
+            const ratio = completed / completed;
+            return ratio;
+          }
+          """,
+          correct: """
+          // Use the distinct values that were intended
+          export function progress(completed: number, total: number): number {
+            const ratio = completed / total;
+            return ratio;
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // ratio is always 1 -- the divisor should be the total, not the count
+          func progress(completed float64) float64 {
+          \tratio := completed / completed
+          \treturn ratio
+          }
+          """,
+          correct: """
+          // Use the distinct values that were intended
+          func progress(completed, total float64) float64 {
+          \tratio := completed / total
+          \treturn ratio
+          }
+          """
         ]
       ]
     ]

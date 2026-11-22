@@ -7,6 +7,79 @@ defmodule MetaCredo.SourcesTest do
 
   alias MetaCredo.{Config, Sources}
 
+  describe "default_included_paths/0 -- cross-language source roots" do
+    # MetaCredo's default `files.included` used to be `["lib/", "src/",
+    # "web/"]`, which is the Elixir/Phoenix layout. A Go service in `cmd/`,
+    # `pkg/` or `internal/`, or a JavaScript/TypeScript front end in `app/` or
+    # `assets/js/`, was therefore never discovered at all -- the languages had
+    # adapters, checks and tests, but a default `mix metacredo` run silently
+    # analysed zero files of them.
+    test "lists the conventional roots of every first-class language" do
+      paths = Config.default_included_paths()
+
+      for path <- [
+            "lib/",
+            "apps/",
+            "src/",
+            "web/",
+            "app/",
+            "assets/js/",
+            "cmd/",
+            "pkg/",
+            "internal/"
+          ] do
+        assert path in paths, "expected #{inspect(path)} in default_included_paths/0"
+      end
+    end
+
+    test "default/0 uses those roots as its included list" do
+      assert Config.default().files.included == Config.default_included_paths()
+    end
+
+    test "discovers Go and JavaScript/TypeScript files under their own roots" do
+      tmp_dir = System.tmp_dir!()
+
+      dir_path =
+        Path.join(tmp_dir, "metacredo_sources_roots_#{System.unique_integer([:positive])}")
+
+      go_file = Path.join(dir_path, "cmd/server/main.go")
+      ts_file = Path.join(dir_path, "assets/js/app.ts")
+      js_file = Path.join(dir_path, "app/hooks.js")
+      lib_file = Path.join(dir_path, "lib/real.ex")
+
+      for {path, body} <- [
+            {go_file, "package main\n"},
+            {ts_file, "export const x: number = 1;\n"},
+            {js_file, "export const y = 1;\n"},
+            {lib_file, "defmodule Fixture do\nend\n"}
+          ] do
+        path |> Path.dirname() |> File.mkdir_p!()
+        File.write!(path, body)
+      end
+
+      on_exit(fn -> File.rm_rf!(dir_path) end)
+
+      source_files =
+        File.cd!(dir_path, fn ->
+          Sources.find(%{included: Config.default_included_paths(), excluded: []})
+        end)
+
+      languages = source_files |> Enum.map(& &1.language) |> Enum.sort()
+
+      # Discovery is asserted through the *language of the parsed file*, so a
+      # file that could not be parsed would be absent from the list. All four
+      # languages are asserted unconditionally: the JavaScript adapter used to
+      # fail on every file under Babel 8 (its plugin list requested
+      # `importAssertions`, removed in Babel 8), which is fixed upstream by
+      # requesting `importAttributes` instead -- a plugin both Babel 7.29 and
+      # Babel 8 accept.
+      assert :go in languages
+      assert :typescript in languages
+      assert :javascript in languages
+      assert :elixir in languages
+    end
+  end
+
   describe "find/1 -- default exclude patterns against a relative project root" do
     test "excludes deps/_build/node_modules/.git even when included is \".\"" do
       tmp_dir = System.tmp_dir!()

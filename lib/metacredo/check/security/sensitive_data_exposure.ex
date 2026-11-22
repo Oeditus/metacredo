@@ -24,6 +24,48 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
           Logger.info("User login attempt", user_id: user.id, email: user.email)
           # Never log passwords, tokens, secrets, or PII in plaintext
           """
+        ],
+        javascript: [
+          wrong: """
+          // Logs the password in plaintext -- anyone with log access can read it
+          function login(profile) {
+            console.log("login attempt:", profile.email, profile.password);
+          }
+          """,
+          correct: """
+          // Log only the non-sensitive identifier
+          function loginSafe(profile) {
+            console.log("login attempt:", profile.email);
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // Logs the password in plaintext -- anyone with log access can read it
+          export function login(user: { email: string; password: string }): void {
+            console.log("login attempt:", user.email, user.password);
+          }
+          """,
+          correct: """
+          // Log only the non-sensitive identifier
+          export function loginSafe(profile: { email: string; password: string }): void {
+            console.log("login attempt:", profile.email);
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // Logs the password in plaintext -- anyone with log access can read it
+          func login(user, password string) {
+          \tfmt.Printf("login attempt: %s / %s\\n", user, password)
+          }
+          """,
+          correct: """
+          // Log only the non-sensitive identifier
+          func loginSafe(user, password string) {
+          \tfmt.Printf("login attempt: %s\\n", user)
+          }
+          """
         ]
       ]
     ]
@@ -71,6 +113,7 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
        when is_list(meta) do
     func_name = Keyword.get(meta, :name, "")
     line = CheckUtils.line_of(meta)
+    args = CheckUtils.call_arguments(meta, args)
 
     cond do
       # NOTE: `safe_stdlib_call?/1` is deliberately *not* consulted here.
@@ -178,6 +221,14 @@ defmodule MetaCredo.Check.Security.SensitiveDataExposure do
         |> Enum.drop(1)
         |> Enum.flat_map(&field_name/1)
         |> Enum.filter(&sensitive_field?/1)
+
+      # The JavaScript/TypeScript adapters spell `user.password` as a
+      # `:function_call` named `"member_access"` whose children are
+      # `[receiver, {:variable, _, field}]`. Only `:attribute_access` (the
+      # Go/Rust/Erlang shape) was handled, so sensitive fields read through a
+      # JS/TS member access were never reported.
+      func_name == "member_access" ->
+        check_sensitive_attribute_chain(inner_args)
 
       func_name in ["inspect", "Kernel.inspect"] or
           String.contains?(func_name, ["struct", "map", "attributes"]) ->

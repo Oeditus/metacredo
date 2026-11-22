@@ -40,6 +40,60 @@ defmodule MetaCredo.Check.Design.TagTodo do
             |> Repo.insert()
           end
           """
+        ],
+        javascript: [
+          wrong: """
+          // TODO: add email uniqueness validation
+          function createUser(attrs) {
+            return db.insert("users", attrs);
+          }
+          """,
+          correct: """
+          // Either implement the missing check now, or drop the comment and
+          // open a properly tracked issue in your project tracker.
+          function createUser(attrs) {
+            if (!attrs.email) {
+              throw new Error("email is required");
+            }
+            return db.insert("users", attrs);
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // TODO: add email uniqueness validation
+          export function createUser(attrs: { email: string }): void {
+            db.insert("users", attrs);
+          }
+          """,
+          correct: """
+          // Either implement the missing check now, or drop the comment and
+          // open a properly tracked issue in your project tracker.
+          export function createUser(attrs: { email: string }): void {
+            if (!attrs.email) {
+              throw new Error("email is required");
+            }
+            db.insert("users", attrs);
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // TODO: add email uniqueness validation
+          func createUser(email string) error {
+          \treturn db.Insert("users", email)
+          }
+          """,
+          correct: """
+          // Either implement the missing check now, or drop the comment and
+          // open a properly tracked issue in your project tracker.
+          func createUser(email string) error {
+          \tif email == "" {
+          \t\treturn fmt.Errorf("email is required")
+          \t}
+          \treturn db.Insert("users", email)
+          }
+          """
         ]
       ]
     ]

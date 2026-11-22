@@ -319,6 +319,13 @@ defmodule MetaCredo.CheckCase do
   end
 
   # Minimal valid source per language, used by `language_available?/1`.
+  #
+  # Every language Metastatic ships an adapter for must appear here: a missing
+  # entry silently degrades to "is the adapter module registered?", which is
+  # true even when the external toolchain backing the adapter is absent, so a
+  # test that parses real source would fail instead of skipping. Go and the
+  # JavaScript/TypeScript pair were added when those became first-class
+  # Metastatic adapters.
   @probe_sources %{
     elixir: {"defmodule Probe do\nend", "probe.ex"},
     erlang: {"-module(probe).\n", "probe.erl"},
@@ -327,7 +334,8 @@ defmodule MetaCredo.CheckCase do
     haskell: {"module Probe where\n", "probe.hs"},
     javascript: {"const x = 1;\n", "probe.js"},
     typescript: {"const x: number = 1;\n", "probe.ts"},
-    rust: {"fn main() {}\n", "probe.rs"}
+    rust: {"fn main() {}\n", "probe.rs"},
+    go: {"package main\n\nfunc main() {}\n", "probe.go"}
   }
 
   # Parsing a probe must never hang the suite: Haskell's `stack exec` fallback
@@ -407,6 +415,8 @@ defmodule MetaCredo.CheckCase do
   def extension_for(:haskell), do: "hs"
   def extension_for(:javascript), do: "js"
   def extension_for(:typescript), do: "ts"
+  def extension_for(:go), do: "go"
+  def extension_for(:rust), do: "rs"
   def extension_for(:cure), do: "cure"
   def extension_for(:march), do: "march"
   def extension_for(_), do: "ex"

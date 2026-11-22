@@ -56,6 +56,107 @@ defmodule MetaCredo.Check.Readability.DeepNesting do
           defp check_auth(conn), do: if authenticated?(conn), do: :ok, else: {:error, :unauthorized}
           defp check_authz(conn, res), do: if authorized?(conn, res), do: :ok, else: {:error, :forbidden}
           """
+        ],
+        javascript: [
+          wrong: """
+          // Five levels of nesting -- impossible to follow
+          function handleRequest(authenticated, resource, authorized) {
+            if (authenticated) {
+              if (resource !== "") {
+                if (authorized) {
+                  if (resource !== "admin") {
+                    if (validate(resource)) {
+                      return render(resource);
+                    }
+                  }
+                }
+              }
+            }
+            return null;
+          }
+          """,
+          correct: """
+          // Guard clauses flatten the nesting to a single level
+          function handleRequest(authenticated, resource, authorized) {
+            if (!authenticated) return null;
+            if (resource === "") return null;
+            if (!authorized) return null;
+            if (resource === "admin") return null;
+            if (!validate(resource)) return null;
+            return render(resource);
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // Five levels of nesting -- impossible to follow
+          export function handleRequest(
+            authenticated: boolean,
+            resource: string,
+            authorized: boolean
+          ): string | null {
+            if (authenticated) {
+              if (resource !== "") {
+                if (authorized) {
+                  if (resource !== "admin") {
+                    if (validate(resource)) {
+                      return render(resource);
+                    }
+                  }
+                }
+              }
+            }
+            return null;
+          }
+          """,
+          correct: """
+          // Guard clauses flatten the nesting to a single level
+          export function handleRequest(
+            authenticated: boolean,
+            resource: string,
+            authorized: boolean
+          ): string | null {
+            if (!authenticated) return null;
+            if (resource === "") return null;
+            if (!authorized) return null;
+            if (resource === "admin") return null;
+            if (!validate(resource)) return null;
+            return render(resource);
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // Five levels of nesting -- impossible to follow
+          func handleRequest(authenticated bool, resource string, authorized bool) {
+          \tif authenticated {
+          \t\tif resource != "" {
+          \t\t\tif authorized {
+          \t\t\t\tif resource != "admin" {
+          \t\t\t\t\tif validate(resource) {
+          \t\t\t\t\t\tfmt.Println("ok")
+          \t\t\t\t\t}
+          \t\t\t\t}
+          \t\t\t}
+          \t\t}
+          \t}
+          }
+          """,
+          correct: """
+          // Guard clauses flatten the nesting to a single level
+          func handleRequest(authenticated bool, resource string, authorized bool) {
+          \tif !authenticated {
+          \t\treturn
+          \t}
+          \tif resource == "" || !authorized || resource == "admin" {
+          \t\treturn
+          \t}
+          \tif !validate(resource) {
+          \t\treturn
+          \t}
+          \tfmt.Println("ok")
+          }
+          """
         ]
       ]
     ]

@@ -6,7 +6,8 @@ Cross-language static code analysis tool built on
 [`MetaAST`](https://github.com/Oeditus/metastatic).  
   
 Write a check once, run it across Elixir, Erlang, Ruby,
-Python, Haskell, and all other languages supported by Metastatic.
+Python, Haskell, Go, JavaScript, TypeScript, and all other languages
+supported by Metastatic.
 
 ## Credits
 
@@ -150,9 +151,22 @@ findings.
 
 MetaCredo operates on the **MetaAST** representation provided by Metastatic.
 Source files are parsed into a language-agnostic AST using Metastatic's adapters
-(Elixir, Python, Ruby, Haskell, Erlang, Cure, March, JavaScript, TypeScript), and then checks pattern-match against
-the uniform `{type, keyword_meta, children}` node structure. This means every
-check is cross-language by default.
+(Elixir, Python, Ruby, Haskell, Erlang, Go, Cure, March, JavaScript, TypeScript),
+and then checks pattern-match against the uniform
+`{type, keyword_meta, children}` node structure. This means every check is
+cross-language by default.
+
+By default, MetaCredo scans the conventional source roots of every supported
+language — `lib/`, `apps/`, `src/`, `web/`, `app/`, `assets/js/`, `cmd/`,
+`pkg/` and `internal/` — so a polyglot repository is analysed without editing
+`.metacredo.exs`. Roots that do not exist are simply skipped.
+
+A check is cross-language, but a *convention* is not. Where a rule is
+language-specific, the check reads the file's language and applies that
+language's rule: `Readability.FunctionNames` and `Readability.VariableNames`
+enforce `camelCase` for JavaScript, TypeScript and Go and `snake_case`
+elsewhere, and `Readability.ModuleNames` / `Readability.ModuleDoc` do not apply
+Elixir's module rules to a Go `package` clause or a Rust `mod x;` declaration.
 
 ## Check Categories (72 checks, 52 enabled by default)
 
@@ -282,7 +296,17 @@ Here is an example of a typical `.metacredo.exs` configuration file:
       no_db: false,
       no_user: false,
       files: %{
-        included: ["lib/", "src/", "web/"],
+        included: [
+          "lib/",
+          "apps/",
+          "src/",
+          "web/",
+          "app/",
+          "assets/js/",
+          "cmd/",
+          "pkg/",
+          "internal/"
+        ],
         excluded: [
           ~r"(^|/)_build/",
           ~r"(^|/)deps/",

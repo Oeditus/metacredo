@@ -32,6 +32,59 @@ defmodule MetaCredo.Check.Security.HardcodedValue do
             HTTPoison.get!(url)
           end
           """
+        ],
+        javascript: [
+          wrong: """
+          // The API base URL is baked into the code -- it cannot differ per environment
+          const response = await fetch("https://api.example.com/v1/data");
+          const payload = await response.json();
+          """,
+          correct: """
+          // Read the base URL from the environment instead
+          const apiUrl = process.env.API_URL;
+          const response = await fetch(`${apiUrl}/v1/data`);
+          const payload = await response.json();
+          """
+        ],
+        typescript: [
+          wrong: """
+          // The API base URL is baked into the code -- it cannot differ per environment
+          export async function fetchData(): Promise<unknown> {
+            const response = await fetch("https://api.example.com/v1/data");
+            return response.json();
+          }
+          """,
+          correct: """
+          // Read the base URL from the environment instead
+          export async function fetchData(apiUrl: string): Promise<unknown> {
+            const response = await fetch(`${apiUrl}/v1/data`);
+            return response.json();
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // The API base URL is baked into the code -- it cannot differ per environment
+          func fetchData() ([]byte, error) {
+          \tresp, err := http.Get("https://api.example.com/v1/data")
+          \tif err != nil {
+          \t\treturn nil, err
+          \t}
+          \tdefer resp.Body.Close()
+          \treturn io.ReadAll(resp.Body)
+          }
+          """,
+          correct: """
+          // Read the base URL from the environment instead
+          func fetchData(apiURL string) ([]byte, error) {
+          \tresp, err := http.Get(apiURL + "/v1/data")
+          \tif err != nil {
+          \t\treturn nil, err
+          \t}
+          \tdefer resp.Body.Close()
+          \treturn io.ReadAll(resp.Body)
+          }
+          """
         ]
       ]
     ]

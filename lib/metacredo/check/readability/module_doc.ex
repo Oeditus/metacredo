@@ -69,8 +69,10 @@ defmodule MetaCredo.Check.Readability.ModuleDoc do
 
     cond do
       # A Rust `mod x;` declaration names another file and cannot carry
-      # documentation, so requiring it would be unsatisfiable.
-      CheckUtils.rust_mod?(meta) ->
+      # documentation, so requiring it would be unsatisfiable. A Go file's
+      # `package` clause is likewise a structural container, not a documented
+      # module definition -- see `CheckUtils.nameless_container?/1`.
+      CheckUtils.nameless_container?(meta) ->
         {node, issues}
 
       has_doc_comment?(children) ->

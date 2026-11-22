@@ -88,6 +88,152 @@ defmodule MetaCredo.Check.Readability.LongFunction do
           defp apply_pricing(order, opts), do: ...
           defp persist(order), do: ...
           """
+        ],
+        javascript: [
+          wrong: """
+          // 55 statements crammed into one function -- impossible to review or test
+          function processOrder(orderId, userId) {
+            validateUser(userId);
+            checkInventory(orderId);
+            applyDiscounts(orderId);
+            calculateTax(orderId);
+            reserveStock(orderId);
+            authorizePayment(orderId, userId);
+            capturePayment(orderId);
+            createShipment(orderId);
+            notifyWarehouse(orderId);
+            sendConfirmationEmail(userId);
+            recordAuditEvent(orderId, userId);
+            updateAnalytics(orderId);
+            invalidateCache(orderId);
+            publishEvent(orderId);
+            scheduleFollowup(orderId);
+            validateUser(userId);
+            checkInventory(orderId);
+            applyDiscounts(orderId);
+            calculateTax(orderId);
+            reserveStock(orderId);
+            authorizePayment(orderId, userId);
+            capturePayment(orderId);
+            createShipment(orderId);
+            notifyWarehouse(orderId);
+            sendConfirmationEmail(userId);
+            recordAuditEvent(orderId, userId);
+            updateAnalytics(orderId);
+            invalidateCache(orderId);
+            publishEvent(orderId);
+            scheduleFollowup(orderId);
+            validateUser(userId);
+            checkInventory(orderId);
+            applyDiscounts(orderId);
+            calculateTax(orderId);
+            reserveStock(orderId);
+            authorizePayment(orderId, userId);
+            capturePayment(orderId);
+            createShipment(orderId);
+            notifyWarehouse(orderId);
+            sendConfirmationEmail(userId);
+            recordAuditEvent(orderId, userId);
+            updateAnalytics(orderId);
+            invalidateCache(orderId);
+            publishEvent(orderId);
+            scheduleFollowup(orderId);
+            validateUser(userId);
+            checkInventory(orderId);
+            applyDiscounts(orderId);
+            calculateTax(orderId);
+            reserveStock(orderId);
+            authorizePayment(orderId, userId);
+            capturePayment(orderId);
+            createShipment(orderId);
+            notifyWarehouse(orderId);
+            sendConfirmationEmail(userId);
+          }
+          """,
+          correct: """
+          // Compose focused helpers that each do one thing
+          function processOrder(orderId, userId) {
+            validateUser(userId);
+            checkInventory(orderId);
+            applyDiscounts(orderId);
+            const total = calculateTax(orderId);
+            return { orderId, userId, total };
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // 55 statements crammed into one function -- impossible to review or test
+          func processOrder(orderID, userID string) {
+          \tvalidateUser(userID)
+          \tcheckInventory(orderID)
+          \tapplyDiscounts(orderID)
+          \tcalculateTax(orderID)
+          \treserveStock(orderID)
+          \tauthorizePayment(orderID, userID)
+          \tcapturePayment(orderID)
+          \tcreateShipment(orderID)
+          \tnotifyWarehouse(orderID)
+          \tsendConfirmationEmail(userID)
+          \trecordAuditEvent(orderID, userID)
+          \tupdateAnalytics(orderID)
+          \tinvalidateCache(orderID)
+          \tpublishEvent(orderID)
+          \tscheduleFollowup(orderID)
+          \tvalidateUser(userID)
+          \tcheckInventory(orderID)
+          \tapplyDiscounts(orderID)
+          \tcalculateTax(orderID)
+          \treserveStock(orderID)
+          \tauthorizePayment(orderID, userID)
+          \tcapturePayment(orderID)
+          \tcreateShipment(orderID)
+          \tnotifyWarehouse(orderID)
+          \tsendConfirmationEmail(userID)
+          \trecordAuditEvent(orderID, userID)
+          \tupdateAnalytics(orderID)
+          \tinvalidateCache(orderID)
+          \tpublishEvent(orderID)
+          \tscheduleFollowup(orderID)
+          \tvalidateUser(userID)
+          \tcheckInventory(orderID)
+          \tapplyDiscounts(orderID)
+          \tcalculateTax(orderID)
+          \treserveStock(orderID)
+          \tauthorizePayment(orderID, userID)
+          \tcapturePayment(orderID)
+          \tcreateShipment(orderID)
+          \tnotifyWarehouse(orderID)
+          \tsendConfirmationEmail(userID)
+          \trecordAuditEvent(orderID, userID)
+          \tupdateAnalytics(orderID)
+          \tinvalidateCache(orderID)
+          \tpublishEvent(orderID)
+          \tscheduleFollowup(orderID)
+          \tvalidateUser(userID)
+          \tcheckInventory(orderID)
+          \tapplyDiscounts(orderID)
+          \tcalculateTax(orderID)
+          \treserveStock(orderID)
+          \tauthorizePayment(orderID, userID)
+          \tcapturePayment(orderID)
+          \tcreateShipment(orderID)
+          \tnotifyWarehouse(orderID)
+          \tsendConfirmationEmail(userID)
+          }
+          """,
+          correct: """
+          // Compose focused helpers that each do one thing
+          func processOrder(orderID, userID string) error {
+          \tif err := validate(userID); err != nil {
+          \t\treturn err
+          \t}
+          \tif err := applyPricing(orderID); err != nil {
+          \t\treturn err
+          \t}
+          \treturn persist(orderID)
+          }
+          """
         ]
       ]
     ]

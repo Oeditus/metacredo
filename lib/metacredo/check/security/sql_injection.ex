@@ -36,6 +36,65 @@ defmodule MetaCredo.Check.Security.SQLInjection do
           # For raw SQL, use parameterized form:
           # Repo.query!("SELECT * FROM products WHERE name = $1", [term])
           """
+        ],
+        javascript: [
+          wrong: """
+          // The request value is pasted into the SQL text -- injectable
+          app.get("/users", (req, res) => {
+            const requestId = req.query.id;
+            const sql = "SELECT id FROM users WHERE id = " + requestId;
+            res.json(db.query(sql));
+          });
+          """,
+          correct: """
+          // Bind the value as a parameter so the driver escapes it
+          app.get("/users", (req, res) => {
+            const requestId = req.query.id;
+            res.json(db.query("SELECT id FROM users WHERE id = ?", [requestId]));
+          });
+          """
+        ],
+        typescript: [
+          wrong: """
+          // The request value is pasted into the SQL text -- injectable
+          export function loadUser(req: any): unknown[] {
+            const requestId: string = req.query.id;
+            const sql = "SELECT id FROM users WHERE id = " + requestId;
+            return db.query(sql);
+          }
+          """,
+          correct: """
+          // Bind the value as a parameter so the driver escapes it
+          export function loadUserSafe(req: any): unknown[] {
+            const requestId: string = req.query.id;
+            return db.query("SELECT id FROM users WHERE id = ?", [requestId]);
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // The request value is concatenated into the SQL text -- injectable
+          func fetchUser(db *sql.DB, requestID string) {
+          \tquery := "SELECT id FROM users WHERE id = " + requestID
+          \trows, err := db.Query(query)
+          \tif err != nil {
+          \t\tfmt.Println("query failed")
+          \t\treturn
+          \t}
+          \tdefer rows.Close()
+          }
+          """,
+          correct: """
+          // Bind the value as a placeholder so the driver escapes it
+          func fetchSafe(db *sql.DB, requestID string) {
+          \trows, err := db.Query("SELECT id FROM users WHERE id = ?", requestID)
+          \tif err != nil {
+          \t\tfmt.Println("query failed")
+          \t\treturn
+          \t}
+          \tdefer rows.Close()
+          }
+          """
         ]
       ]
     ]

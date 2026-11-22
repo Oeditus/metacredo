@@ -2,6 +2,101 @@
 
 ## Unreleased
 
+## Unreleased
+
+### Added — alignment with Metastatic's JavaScript/TypeScript and Go adapters
+
+Metastatic 0.43.0 promoted JavaScript, TypeScript and Go to first-class source
+languages. MetaCredo depended on them only nominally: the adapters existed, but
+several parts of the tool still assumed the Elixir/Phoenix layout and Elixir's
+naming rules, so the new languages were either never analysed or analysed
+wrongly. This release closes those gaps.
+
+**Source discovery.** The default `files.included` was `["lib/", "src/",
+"web/"]`, which is the Elixir/Phoenix layout. A Go service in `cmd/`, `pkg/`
+or `internal/`, or a JavaScript/TypeScript front end in `app/` or
+`assets/js/`, was never discovered at all — the languages had adapters, checks
+and tests, but a default `mix metacredo` run silently analysed zero files of
+them. The default is now the union of every supported language's conventional
+source roots, exposed as `MetaCredo.Config.default_included_paths/0`. A root
+that does not exist contributes nothing, so the wider default is free for
+single-language projects. `mix metacredo.gen.config` emits the same list, and
+`mix metacredo explain` now recognises `go.mod` as a Go project marker.
+
+**Naming conventions are now per-language.** `Readability.FunctionNames` and
+`Readability.VariableNames` hardcoded Elixir's `snake_case` and applied it to
+every language, so correctly written `processUserData` / `maxRetries` in a
+JavaScript, TypeScript or Go file was reported as "not in snake_case" — a
+false positive on idiomatic code. Both checks now ask
+`CheckUtils.conventional_name?/2` for the convention of the file's language:
+`camelCase` for JavaScript, TypeScript and Go, `snake_case` for everything
+else. Issue messages name the convention actually applied ("not in
+camelCase" rather than "not in snake_case").
+
+**Go `package` clauses are no longer treated as modules.** The Go adapter
+reports a file's `package` clause as a `:module` container, so
+`Readability.ModuleNames` reported "not in PascalCase" for *every* Go file
+(`package main`, `package http`) and `Readability.ModuleDoc` demanded a
+`@moduledoc` that Go cannot carry. `CheckUtils.nameless_container?/1` now
+covers both this case and the existing Rust `mod x;` declaration, so neither
+check applies Elixir's module rules to a structural container.
+
+**`TagTodo` / `TagFixme` work on the new languages.** `Design.TagScan` had no
+comment syntax for Go, so `// TODO:` in a `.go` file matched nothing and both
+checks were silently dead there — the same defect that had previously gone
+unnoticed for Rust. Go is now registered alongside JavaScript and TypeScript.
+
+**Test infrastructure.** `CheckCase` gained a Go probe source and a `:go`
+extension, so language-gated tests skip rather than fail when the Go toolchain
+is absent; `:rust` was also missing from `extension_for/1`.
+
+**Checks that were silently dead on JavaScript/TypeScript.** The JS/TS
+adapters emit a call's *callee* as the **first child** of the
+`:function_call` node (`axios.get(targetUrl)` has children
+`[callee, targetUrl]`), while every other adapter records the callee only in
+the `:name` metadata. Three checks took "the first argument" to be `hd(args)`
+and therefore examined the callee instead of the argument:
+
+- `Security.SSRFVulnerability` inspected the callee rather than the URL;
+- `Security.SensitiveDataExposure` inspected the callee rather than the logged
+  value;
+- `Warning.UnsafeExec` walked the callee when testing for tainted input.
+
+All three reported nothing on real JS/TS source, silently, on constructs they
+advertise as cross-language. `Security.XSSVulnerability` had a related gap: it
+matched only the `:attribute_access` shape used by Go/Rust/Erlang, while JS/TS
+emit `obj.prop` as a `:function_call` named `"member_access"`, so
+`element.innerHTML = x` was never recognised. `SensitiveDataExposure` also
+understood only Elixir's `Map.fetch!(user, :password)` shape and not
+`user.password`.
+
+Argument extraction is now `CheckUtils.call_arguments/2` (with
+`callee_node?/2`), the single place that knows both shapes, so a new adapter
+only has to be handled once rather than in every check.
+
+**JavaScript now works under `@babel/parser` 8.x (fixed upstream).** With
+Babel 8 installed, the JavaScript adapter failed on *every* file: its plugin
+list requested `importAssertions`, which Babel 8 removed in favour of import
+attributes (`Error: \`importAssertions\` has been removed in Babel 8`). Because
+the plugin list is validated when the parser module loads, a single stale entry
+made the whole JavaScript dialect unusable — TypeScript was unaffected only
+because its plugin set happens not to include it.
+
+The fix is a one-word change in Metastatic's bundled
+`priv/parsers/javascript/parser.js`: request `importAttributes` instead of
+`importAssertions`. `importAttributes` is accepted by both Babel 7.29 and
+Babel 8.0 and produces an identical `ImportDeclaration` with `attributes`, so a
+single plugin list covers the supported range and no version detection is
+needed. Verified by parsing `import d from "./a.json" with { type: "json" };`
+under both versions.
+
+**Known upstream limitation.** A TypeScript non-null assertion (`expr!`) is
+abstracted as a `:language_specific` node carrying the raw Babel subtree, so
+checks that pattern-match on the *abstracted* shape cannot see through it —
+`element.innerHTML = x` is invisible to `XSSVulnerability` when written as
+`document.getElementById("bio")!.innerHTML = x`. The documented examples use
+`as HTMLElement` instead of `!` for this reason.
+
 ### CI classifier boundaries
 - `Warning.SyncOverAsync` now uses semantic operation metadata and exact known I/O operations instead of name substrings. Logging, pure standard-library helpers, and query builders are not blocking calls; eagerly evaluated task arguments and actual waits remain checked.
 - `Warning.ImperativeStatusHandling` no longer recommends FSMs from lifecycle names or predicates alone. Actual status assignments, map updates, and multi-state branches remain detectable.

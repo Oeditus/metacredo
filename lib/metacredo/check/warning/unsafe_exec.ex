@@ -29,6 +29,82 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
 
           def render_pdf(_), do: {:error, :invalid_format}
           """
+        ],
+        javascript: [
+          wrong: """
+          // `user_input` is concatenated into a shell string -- command injection
+          const { exec } = require("child_process");
+
+          function renderPdf(user_input) {
+            exec("pandoc " + user_input + " -o out.pdf", (err) => {
+              if (err) console.error("render failed");
+            });
+          }
+          """,
+          correct: """
+          // Validate against an allow-list and pass arguments separately (no shell)
+          const { execFile } = require("child_process");
+          const allowedFormats = ["markdown", "rst"];
+
+          function renderPdfSafe(format) {
+            if (!allowedFormats.includes(format)) {
+              throw new Error("invalid format");
+            }
+            execFile("pandoc", ["input." + format, "-o", "out.pdf"]);
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // `user_input` is concatenated into a shell string -- command injection
+          import { exec } from "child_process";
+
+          export function renderPdf(user_input: string): void {
+            exec("pandoc " + user_input + " -o out.pdf", (err) => {
+              if (err) console.error("render failed");
+            });
+          }
+          """,
+          correct: """
+          // Validate against an allow-list and pass arguments separately (no shell)
+          import { execFile } from "child_process";
+          const allowedFormats: string[] = ["markdown", "rst"];
+
+          export function renderPdfSafe(format: string): void {
+            if (!allowedFormats.includes(format)) {
+              throw new Error("invalid format");
+            }
+            execFile("pandoc", ["input." + format, "-o", "out.pdf"]);
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // `userInput` is interpolated into a shell string -- command injection
+          func renderPdf(userInput string) {
+          \tcmd := exec.Command("sh", "-c", "pandoc "+userInput+" -o out.pdf")
+          \tif out, err := cmd.Output(); err != nil {
+          \t\tfmt.Println("render failed")
+          \t} else {
+          \t\tfmt.Println(string(out))
+          \t}
+          }
+          """,
+          correct: """
+          // Validate against an allow-list and pass arguments separately (no shell)
+          func renderPdfSafe(format string) {
+          \tif format != "markdown" && format != "rst" {
+          \t\tfmt.Println("invalid format")
+          \t\treturn
+          \t}
+          \tcmd := exec.Command("pandoc", "input."+format, "-o", "out.pdf")
+          \tif out, err := cmd.Output(); err != nil {
+          \t\tfmt.Println("render failed")
+          \t} else {
+          \t\tfmt.Println(string(out))
+          \t}
+          }
+          """
         ]
       ]
     ]
@@ -59,7 +135,7 @@ defmodule MetaCredo.Check.Warning.UnsafeExec do
     fn_name = CheckUtils.safe_name(meta)
     fn_lower = String.downcase(fn_name)
 
-    if exec_function?(fn_lower) and has_user_input_arg?(args) do
+    if exec_function?(fn_lower) and has_user_input_arg?(CheckUtils.call_arguments(meta, args)) do
       line = CheckUtils.line_of(meta)
 
       issue =

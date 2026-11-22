@@ -113,6 +113,32 @@ defmodule MetaCredo.Check.Design.TagScanTest do
       assert TagScan.comment_text("let url = \"http://example.com\";", :rust) == nil
     end
 
+    # JavaScript, TypeScript and Go were registered Metastatic adapters long
+    # before MetaCredo learned their comment syntax. Without an entry here the
+    # source-line fallback returns `nil` for every line, so TagTodo/TagFixme
+    # were silently dead on those languages -- the same defect that had
+    # previously gone unnoticed for Rust.
+    test "extracts a TypeScript line comment" do
+      assert TagScan.comment_text("const x: number = 1; // TODO: fix", :typescript) ==
+               "TODO: fix"
+    end
+
+    test "extracts a Go line comment" do
+      assert TagScan.comment_text("x := 1 // FIXME: broken", :go) == "FIXME: broken"
+    end
+
+    test "extracts a whole-line Go comment" do
+      assert TagScan.comment_text("// TODO: track this", :go) == "TODO: track this"
+    end
+
+    test "ignores a // inside a Go string literal" do
+      assert TagScan.comment_text(~S(path := "a//b"), :go) == nil
+    end
+
+    test "finds a Go comment after a closed string" do
+      assert TagScan.comment_text(~S(p := "a//b" // TODO), :go) == "TODO"
+    end
+
     test "finds a Rust comment after a closed string" do
       assert TagScan.comment_text("let u = \"http://x\"; // TODO", :rust) == "TODO"
     end

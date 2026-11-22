@@ -36,6 +36,75 @@ defmodule MetaCredo.Check.Readability.MagicNumber do
             if attempts > @max_login_attempts, do: lock_account()
           end
           """
+        ],
+        javascript: [
+          wrong: """
+          // Reader must guess what 0.15, 3600 and 5 mean
+          function applyDiscount(total) {
+            return total * 0.15;
+          }
+
+          function sessionExpiry(now) {
+            return now + 3600;
+          }
+          """,
+          correct: """
+          // Named constants document the intent
+          const LOYALTY_DISCOUNT = 0.15;
+          const SESSION_TTL_SECONDS = 3600;
+
+          function applyDiscount(total) {
+            return total * LOYALTY_DISCOUNT;
+          }
+
+          function sessionExpiry(now) {
+            return now + SESSION_TTL_SECONDS;
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // Reader must guess what 0.15 and 3600 mean
+          export function applyDiscount(total: number): number {
+            return total * 0.15;
+          }
+
+          export function sessionExpiry(now: number): number {
+            return now + 3600;
+          }
+          """,
+          correct: """
+          // Named constants document the intent
+          const LOYALTY_DISCOUNT = 0.15;
+          const SESSION_TTL_SECONDS = 3600;
+
+          export function applyDiscount(total: number): number {
+            return total * LOYALTY_DISCOUNT;
+          }
+
+          export function sessionExpiry(now: number): number {
+            return now + SESSION_TTL_SECONDS;
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // Reader must guess what 1.2 and 0.5 mean
+          func priceWithTax(price float64) float64 {
+          \treturn price*1.2 + 0.5
+          }
+          """,
+          correct: """
+          // Named constants document the intent
+          const (
+          \tvATRate    = 1.2
+          \thandlingFee = 0.5
+          )
+
+          func priceWithTax(price float64) float64 {
+          \treturn price*vATRate + handlingFee
+          }
+          """
         ]
       ]
     ]

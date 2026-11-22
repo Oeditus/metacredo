@@ -29,6 +29,52 @@ defmodule MetaCredo.Check.Warning.DebugLeftover do
             persist(total)
           end
           """
+        ],
+        javascript: [
+          wrong: """
+          // console.log left over from debugging
+          function processOrder(orderId) {
+            console.log("debug: processing", orderId);
+            console.debug("debug order:", orderId);
+            return complete(orderId);
+          }
+          """,
+          correct: """
+          // No debug output left behind
+          function processOrder(orderId) {
+            return complete(orderId);
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // console.log left over from debugging
+          export function processOrder(orderId: string): void {
+            console.log("debug: processing", orderId);
+            console.debug("debug order:", orderId);
+          }
+          """,
+          correct: """
+          // No debug output left behind
+          export function processOrder(orderId: string): void {
+            complete(orderId);
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // fmt.Println left over from debugging
+          func processOrder(orderID string) {
+          \tfmt.Println("debug: processing", orderID)
+          \tfmt.Printf("debug order: %v\\n", orderID)
+          }
+          """,
+          correct: """
+          // No debug output left behind
+          func processOrder(orderID string) {
+          \tcomplete(orderID)
+          }
+          """
         ]
       ]
     ]

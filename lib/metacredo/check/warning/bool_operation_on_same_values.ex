@@ -27,6 +27,60 @@ defmodule MetaCredo.Check.Warning.BoolOperationOnSameValues do
 
           valid = input != nil
           """
+        ],
+        javascript: [
+          wrong: """
+          // Both operands are identical -- likely a copy-paste mistake
+          function grant(profile) {
+            if (profile.active && profile.active) {
+              return "granted";
+            }
+            return "denied";
+          }
+          """,
+          correct: """
+          // Use each condition once, or add the missing distinct condition
+          function grant(profile) {
+            if (profile.active && profile.verified) {
+              return "granted";
+            }
+            return "denied";
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // Both operands are identical -- likely a copy-paste mistake
+          export function grant(profile: { active: boolean }): string {
+            if (profile.active && profile.active) {
+              return "granted";
+            }
+            return "denied";
+          }
+          """,
+          correct: """
+          // Use each condition once, or add the missing distinct condition
+          export function grant(profile: { active: boolean; verified: boolean }): string {
+            if (profile.active && profile.verified) {
+              return "granted";
+            }
+            return "denied";
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // Both operands are identical -- likely a copy-paste mistake
+          func isEligible(age int) bool {
+          \treturn age >= 18 && age >= 18
+          }
+          """,
+          correct: """
+          // Use each condition once, or add the missing distinct condition
+          func isEligible(age int, verified bool) bool {
+          \treturn age >= 18 && verified
+          }
+          """
         ]
       ]
     ]

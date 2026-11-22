@@ -36,6 +36,60 @@ defmodule MetaCredo.Check.Design.TagFixme do
           def calculate(_a, 0), do: {:error, :division_by_zero}
           def calculate(a, b), do: {:ok, a / b}
           """
+        ],
+        javascript: [
+          wrong: """
+          // FIXME: division by zero not handled
+          function calculate(a, b) {
+            return a / b;
+          }
+          """,
+          correct: """
+          // Either fix the issue inline or remove the comment and open a
+          // ticket in your issue tracker with reproduction steps.
+          function calculate(a, b) {
+            if (b === 0) {
+              throw new Error("division by zero");
+            }
+            return a / b;
+          }
+          """
+        ],
+        typescript: [
+          wrong: """
+          // FIXME: division by zero not handled
+          export function calculate(a: number, b: number): number {
+            return a / b;
+          }
+          """,
+          correct: """
+          // Either fix the issue inline or remove the comment and open a
+          // ticket in your issue tracker with reproduction steps.
+          export function calculate(a: number, b: number): number {
+            if (b === 0) {
+              throw new Error("division by zero");
+            }
+            return a / b;
+          }
+          """
+        ],
+        go: [
+          wrong: """
+          // FIXME: division by zero not handled
+          func calculate(a, b int) int {
+          \treturn a / b
+          }
+          """,
+          correct: """
+          // Either fix the issue inline or remove the comment and open a
+          // ticket in your issue tracker with reproduction steps.
+          func calculate(a, b int) (int, error) {
+          \tif b == 0 {
+          \t\treturn 0, fmt.Errorf("division by zero")
+          \t}
+          \treturn a / b, nil
+          }
+          """
         ]
       ]
     ]
