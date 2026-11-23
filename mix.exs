@@ -168,6 +168,7 @@ defmodule MetaCredo.MixProject do
     [
       Core: [
         MetaCredo,
+        MetaCredo.Baseline,
         MetaCredo.Check,
         MetaCredo.Config,
         MetaCredo.Git,
@@ -273,6 +274,7 @@ defmodule MetaCredo.MixProject do
         MetaCredo.Check.Design.LowCohesion,
         MetaCredo.Check.Design.HighCoupling,
         MetaCredo.Check.Design.TagFixme,
+        MetaCredo.Check.Design.TagScan,
         MetaCredo.Check.Design.TagTodo
       ],
       "Observability Checks": [
@@ -285,6 +287,7 @@ defmodule MetaCredo.MixProject do
       Internals: [
         MetaCredo.Check.Utils,
         MetaCredo.CheckCase,
+        MetaCredo.CLI.Explain,
         MetaCredo.CLI.Output
       ]
     ]
